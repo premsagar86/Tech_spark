@@ -1,0 +1,31 @@
+{
+  "name": "techspark-2026-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:schema": "node src/db/applySchema.js",
+    "db:seed": "node src/db/seed.js",
+    "create-admin": "node src/db/create-admin.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "mjml": "^4.15.3",
+    "mysql2": "^3.11.0",
+    "nodemailer": "^6.9.14",
+    "razorpay": "^2.9.4",
+    "twilio": "^5.2.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

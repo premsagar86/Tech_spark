@@ -1,0 +1,179 @@
+import { pool } from "../db/pool.js";
+import { confirmPayment } from "../services/confirmPayment.js";
+import { searchRegistrations, getRegistrationById } from "../models/registrations.model.js";
+import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
+
+function httpError(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  return e;
+}
+
+export function logoutAdmin(req, res) {
+  res.clearCookie("adminToken");
+  res.json({ ok: true });
+}
+
+export async function listRegistrations(req, res, next) {
+  try {
+    const { search, eventId, paymentStatus, format } = req.query;
+    const rows = await searchRegistrations({ search, eventId, paymentStatus });
+
+    if (format === "csv") {
+      const header = "registration_code,team_name,event_name,payment_status,team_size,registration_fee,created_at";
+      const lines = rows.map((r) =>
+        [r.registration_code, r.team_name ?? "", r.event_name, r.payment_status, r.team_size, r.registration_fee, r.created_at]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(",")
+      );
+      const csv = [header, ...lines].join("\n");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=registrations.csv");
+      return res.send(csv);
+    }
+
+    res.json({ registrations: rows });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Manual override for edge cases (e.g. webhook + signature both somehow
+// failed) — an admin should sanity-check the order's real status in the
+// Razorpay dashboard before using either of these (Part 4).
+export async function confirmPaymentOverride(req, res, next) {
+  try {
+    const registration = await getRegistrationById(req.params.id);
+    if (!registration) return res.status(404).json({ error: "Registration not found" });
+    await confirmPayment(registration.id, { confirmedByAdminId: req.admin.adminId });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function rejectPaymentOverride(req, res, next) {
+  try {
+    const registration = await getRegistrationById(req.params.id);
+    if (!registration) return res.status(404).json({ error: "Registration not found" });
+    await pool.query("UPDATE registrations SET payment_status = 'failed' WHERE id = ?", [registration.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Add a team member to an existing registration (Part 4), capped at
+// event.max_team_size, rejecting duplicate roll numbers the same way
+// registration time does.
+export async function addTeamMember(req, res, next) {
+  const { id } = req.params;
+  const { fullName, rollNumber, mobile, email } = req.body;
+  const conn = await pool.getConnection();
+  let newParticipantOrder;
+
+  try {
+    await conn.beginTransaction();
+
+    const [[registration]] = await conn.query("SELECT * FROM registrations WHERE id = ? FOR UPDATE", [id]);
+    if (!registration) throw httpError(404, "Registration not found");
+
+    const [[event]] = await conn.query("SELECT * FROM events WHERE id = ?", [registration.event_id]);
+    const [existing] = await conn.query(
+      "SELECT * FROM participants WHERE registration_id = ? ORDER BY participant_order",
+      [id]
+    );
+
+    if (existing.length >= event.max_team_size) {
+      throw httpError(400, `Team is already at the maximum size of ${event.max_team_size}`);
+    }
+
+    newParticipantOrder = existing.length + 1;
+    await conn.query(
+      `INSERT INTO participants
+         (registration_id, event_id, participant_order, full_name, roll_number, mobile, email)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, registration.event_id, newParticipantOrder, fullName, rollNumber, mobile ?? null, email ?? null]
+    );
+    await conn.query("UPDATE registrations SET team_size = ? WHERE id = ?", [newParticipantOrder, id]);
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "That roll number is already registered for this event" });
+    }
+    return next(err);
+  } finally {
+    conn.release();
+  }
+
+  // Payment already settled — backfill just the new member. Safe to re-run:
+  // existing participants' codes recompute to the same value and are already
+  // marked notified, so only the new member gets a check-in code + email.
+  const registration = await getRegistrationById(id);
+  if (registration.payment_status === "paid" || registration.payment_status === "not_required") {
+    await confirmPayment(id);
+  }
+
+  res.status(201).json({ ok: true });
+}
+
+// Event check-in scanning (Part 6) — three outcomes: code doesn't exist,
+// code exists but payment isn't settled, or code exists and is authorized.
+export async function verifyCheckInCode(req, res, next) {
+  try {
+    const participant = await getParticipantByCheckInCode(req.params.code);
+    if (!participant) return res.status(404).json({ error: "NO TEAM REGISTERED" });
+
+    const registration = await getRegistrationById(participant.registration_id);
+    const authorized = registration.payment_status === "paid" || registration.payment_status === "not_required";
+
+    const teamMembers = await pool.query(
+      "SELECT id, full_name, roll_number, check_in_code, checked_in, checked_in_at FROM participants WHERE registration_id = ? ORDER BY participant_order",
+      [registration.id]
+    ).then(([rows]) => rows);
+
+    res.json({
+      authorized,
+      teamName: registration.team_name,
+      event_id: registration.event_id,
+      paymentStatus: registration.payment_status,
+      participants: teamMembers,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Row-locked (Part 3 concurrency note) — two scanner devices checking the
+// same person in at once can't both "succeed."
+export async function checkInParticipant(req, res, next) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[participant]] = await conn.query("SELECT * FROM participants WHERE id = ? FOR UPDATE", [req.params.id]);
+    if (!participant) throw httpError(404, "Participant not found");
+
+    if (participant.checked_in) {
+      await conn.rollback();
+      return res.status(409).json({
+        error: "Already checked in",
+        checkedInAt: participant.checked_in_at,
+      });
+    }
+
+    await conn.query(
+      "UPDATE participants SET checked_in = TRUE, checked_in_at = NOW(), checked_in_by = ? WHERE id = ?",
+      [req.admin.adminId, participant.id]
+    );
+    await conn.commit();
+    res.json({ ok: true });
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+}
