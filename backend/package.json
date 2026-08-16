@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "nodemon src/server.js",
+    "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:schema": "node src/db/applySchema.js",
     "db:seed": "node src/db/seed.js",
