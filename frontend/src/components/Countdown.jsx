@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import Snowfall from "./Snowfall.jsx";
 
 function getTimeLeft(targetDate) {
   const diff = Math.max(0, new Date(targetDate).getTime() - Date.now());
@@ -45,7 +44,7 @@ export default function Countdown({ targetDate = FEST_START }) {
 
   return (
     <div className="relative">
-      <Snowfall className="z-10" />
+      
       <div className="relative z-20 flex gap-3 [perspective:800px] md:gap-6">
         {units.map((u, i) => (
           <div
