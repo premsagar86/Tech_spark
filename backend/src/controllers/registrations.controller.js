@@ -156,6 +156,14 @@ export async function retryPayment(req, res, next) {
       return res.status(409).json({ error: "This registration is already confirmed" });
     }
 
+    // Failed registrations older than the purge grace period have had their
+    // participant data wiped (see expireStaleRegistrations.js) — nothing left
+    // to pay for.
+    const participants = await listParticipantsForRegistration(registration.id);
+    if (participants.length === 0) {
+      return res.status(410).json({ error: "This registration has expired, please register again" });
+    }
+
     const order = await createOrder({
       amount: registration.registration_fee,
       receipt: `${registration.registration_code}-retry-${Date.now()}`,

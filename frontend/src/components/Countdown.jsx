@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
+import Snowfall from "./Snowfall.jsx";
 
 function getTimeLeft(targetDate) {
   const diff = Math.max(0, new Date(targetDate).getTime() - Date.now());
@@ -43,23 +44,26 @@ export default function Countdown({ targetDate = FEST_START }) {
   ];
 
   return (
-    <div className="flex gap-3 [perspective:800px] md:gap-6">
-      {units.map((u, i) => (
-        <div
-          key={u.label}
-          ref={(el) => (cardRefs.current[i] = el)}
-          onMouseMove={(e) => handleTilt(e, cardRefs.current[i])}
-          onMouseLeave={() => resetTilt(cardRefs.current[i])}
-          className="w-16 rounded-xl border border-border bg-raised px-2 py-3 text-center shadow-lg md:w-24 md:py-5"
-        >
-          <div className="font-display text-2xl text-primary md:text-4xl">
-            {String(u.value).padStart(2, "0")}
+    <div className="relative">
+      <Snowfall className="z-10" />
+      <div className="relative z-20 flex gap-3 [perspective:800px] md:gap-6">
+        {units.map((u, i) => (
+          <div
+            key={u.label}
+            ref={(el) => (cardRefs.current[i] = el)}
+            onMouseMove={(e) => handleTilt(e, cardRefs.current[i])}
+            onMouseLeave={() => resetTilt(cardRefs.current[i])}
+            className="w-16 rounded-xl border border-border bg-raised px-2 py-3 text-center shadow-lg md:w-24 md:py-5"
+          >
+            <div className="font-display text-2xl text-primary md:text-4xl">
+              {String(u.value).padStart(2, "0")}
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-foreground-muted md:text-xs">
+              {u.label}
+            </div>
           </div>
-          <div className="mt-1 text-[10px] uppercase tracking-wider text-foreground-muted md:text-xs">
-            {u.label}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

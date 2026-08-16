@@ -1,6 +1,7 @@
 import { pool } from "../db/pool.js";
 
 const STALE_MINUTES = 30;
+const PURGE_GRACE_HOURS = 24;
 const CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 // Abandoned checkouts left in 'created' permanently occupy a capacity slot
@@ -23,7 +24,32 @@ async function expireStaleRegistrations() {
   }
 }
 
+// People who never paid shouldn't have their details sitting in the DB
+// forever. Once a 'failed' registration has sat well past any reasonable
+// retry window, wipe the participant PII it collected — but leave the
+// registration row itself (no PII) intact for admin stats/CSV audit.
+async function purgeFailedParticipantData() {
+  try {
+    const [result] = await pool.query(
+      `DELETE p FROM participants p
+       JOIN registrations r ON r.id = p.registration_id
+       WHERE r.payment_status = 'failed'
+         AND r.created_at < (NOW() - INTERVAL ? HOUR)`,
+      [PURGE_GRACE_HOURS]
+    );
+    if (result.affectedRows > 0) {
+      console.log(`Purged participant data for ${result.affectedRows} failed registration(s).`);
+    }
+  } catch (err) {
+    console.error("purgeFailedParticipantData failed:", err.message);
+  }
+}
+
 export function startExpireStaleRegistrationsJob() {
   expireStaleRegistrations();
-  setInterval(expireStaleRegistrations, CHECK_INTERVAL_MS);
+  purgeFailedParticipantData();
+  setInterval(() => {
+    expireStaleRegistrations();
+    purgeFailedParticipantData();
+  }, CHECK_INTERVAL_MS);
 }

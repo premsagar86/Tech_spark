@@ -16,6 +16,17 @@ export default {
         display: ["Bebas Neue", "sans-serif"],
         body: ["Poppins", "sans-serif"],
       },
+      keyframes: {
+        snowfall: {
+          "0%": { transform: "translateY(-10%) translateX(0)", opacity: 0 },
+          "10%": { opacity: "var(--flake-opacity, 0.85)" },
+          "90%": { opacity: "var(--flake-opacity, 0.85)" },
+          "100%": { transform: "translateY(120%) translateX(var(--flake-drift, 12px))", opacity: 0 },
+        },
+      },
+      animation: {
+        snowfall: "snowfall linear infinite",
+      },
     },
   },
   plugins: [],

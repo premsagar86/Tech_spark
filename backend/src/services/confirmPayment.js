@@ -21,6 +21,14 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
       [registrationId]
     );
 
+    // Safety net: participant PII gets purged for long-abandoned 'failed'
+    // registrations (expireStaleRegistrations.js). If this ever fires against
+    // a purged registration, fail loudly instead of silently marking a
+    // roster-less registration as 'paid'.
+    if (participants.length === 0) {
+      throw new Error(`Registration ${registrationId} has no participants — cannot confirm payment`);
+    }
+
     // Idempotency guard — handles the webhook-vs-client-callback race.
     if (participants.length > 0 && participants.every((p) => p.check_in_code !== null)) {
       await conn.commit();
