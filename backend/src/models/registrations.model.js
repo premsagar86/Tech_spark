@@ -57,3 +57,16 @@ export async function searchRegistrations({ search, eventId, paymentStatus }) {
   );
   return rows;
 }
+
+// Admin dashboard stats (payment counts + per-event breakdown) — one grouped
+// query, reshaped into totals/byEvent by the controller.
+export async function getRegistrationStats() {
+  const [rows] = await pool.query(
+    `SELECT r.event_id, e.name AS event_name, e.slug AS event_slug, r.payment_status,
+            COUNT(*) AS count, SUM(r.registration_fee) AS revenue
+     FROM registrations r
+     JOIN events e ON e.id = r.event_id
+     GROUP BY r.event_id, e.name, e.slug, r.payment_status`
+  );
+  return rows;
+}

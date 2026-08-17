@@ -1,6 +1,6 @@
 import { pool } from "../db/pool.js";
 import { confirmPayment } from "../services/confirmPayment.js";
-import { searchRegistrations, getRegistrationById } from "../models/registrations.model.js";
+import { searchRegistrations, getRegistrationById, getRegistrationStats } from "../models/registrations.model.js";
 import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
 
 function httpError(status, message) {
@@ -33,6 +33,49 @@ export async function listRegistrations(req, res, next) {
     }
 
     res.json({ registrations: rows });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Dashboard summary: payment counts overall + a per-event breakdown, so an
+// admin can see "how many teams for event X, how many paid" without having
+// to filter one event at a time.
+export async function getStats(req, res, next) {
+  try {
+    const rows = await getRegistrationStats();
+
+    const totals = { teams: 0, paid: 0, created: 0, failed: 0, not_required: 0, revenue: 0 };
+    const byEventMap = new Map();
+
+    for (const row of rows) {
+      const count = Number(row.count);
+      const revenue = row.payment_status === "paid" ? Number(row.revenue) || 0 : 0;
+
+      totals.teams += count;
+      totals[row.payment_status] = (totals[row.payment_status] ?? 0) + count;
+      totals.revenue += revenue;
+
+      if (!byEventMap.has(row.event_id)) {
+        byEventMap.set(row.event_id, {
+          event_id: row.event_id,
+          event_name: row.event_name,
+          event_slug: row.event_slug,
+          teams: 0,
+          paid: 0,
+          created: 0,
+          failed: 0,
+          not_required: 0,
+          revenue: 0,
+        });
+      }
+      const entry = byEventMap.get(row.event_id);
+      entry.teams += count;
+      entry[row.payment_status] = (entry[row.payment_status] ?? 0) + count;
+      entry.revenue += revenue;
+    }
+
+    res.json({ totals, byEvent: [...byEventMap.values()] });
   } catch (err) {
     next(err);
   }
