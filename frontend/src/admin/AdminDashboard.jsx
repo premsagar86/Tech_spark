@@ -13,10 +13,19 @@ const statusBadge = {
   failed: "bg-red-500/15 text-red-400",
 };
 
+const statCards = [
+  { key: "teams", label: "Total Teams", className: "text-foreground" },
+  { key: "paid", label: "Paid", className: "text-accent" },
+  { key: "created", label: "Pending", className: "text-primary" },
+  { key: "failed", label: "Failed", className: "text-red-400" },
+  { key: "not_required", label: "Free (No Payment)", className: "text-accent" },
+];
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [rows, setRows] = useState([]);
+  const [stats, setStats] = useState(null);
   const [search, setSearch] = useState("");
   const [eventId, setEventId] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
@@ -29,14 +38,17 @@ export default function AdminDashboard() {
     api.getEvents().then((data) => setEvents(data.events));
   }, []);
 
-  async function load() {
+  async function load(overrides = {}) {
     setLoading(true);
     setError(null);
     try {
+      const effectiveSearch = overrides.search ?? search;
+      const effectiveEventId = overrides.eventId ?? eventId;
+      const effectivePaymentStatus = overrides.paymentStatus ?? paymentStatus;
       const params = {};
-      if (search) params.search = search;
-      if (eventId) params.eventId = eventId;
-      if (paymentStatus) params.paymentStatus = paymentStatus;
+      if (effectiveSearch) params.search = effectiveSearch;
+      if (effectiveEventId) params.eventId = effectiveEventId;
+      if (effectivePaymentStatus) params.paymentStatus = effectivePaymentStatus;
       const data = await api.listRegistrations(params);
       setRows(data.registrations);
     } catch (err) {
@@ -50,16 +62,34 @@ export default function AdminDashboard() {
     }
   }
 
+  async function loadStats() {
+    try {
+      const data = await api.getAdminStats();
+      setStats(data);
+    } catch {
+      // Stats are a summary convenience — a failure here shouldn't block the main table.
+    }
+  }
+
   useEffect(() => {
     load();
+    loadStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function filterByEvent(id) {
+    const idStr = String(id);
+    setEventId(idStr);
+    setPaymentStatus("");
+    setSearch("");
+    load({ eventId: idStr, paymentStatus: "", search: "" });
+  }
 
   async function handleConfirm(id) {
     setBusyId(id);
     try {
       await api.confirmPaymentOverride(id);
-      await load();
+      await Promise.all([load(), loadStats()]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -72,7 +102,7 @@ export default function AdminDashboard() {
     setBusyId(id);
     try {
       await api.rejectPaymentOverride(id);
-      await load();
+      await Promise.all([load(), loadStats()]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,7 +127,7 @@ export default function AdminDashboard() {
   function handleLogout() {
     clearAdminToken();
     api.adminLogout().catch(() => {});
-    navigate("/admin/login");
+    navigate("/login");
   }
 
   return (
@@ -114,12 +144,69 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {stats && (
+        <>
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {statCards.map((c) => (
+              <div key={c.key} className="rounded-lg border border-border bg-raised px-4 py-3">
+                <p className="text-xs text-foreground-muted">{c.label}</p>
+                <p className={`mt-1 text-2xl font-semibold ${c.className}`}>{stats.totals[c.key] ?? 0}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-foreground-muted">
+            Total revenue collected: <span className="font-semibold text-accent">₹{stats.totals.revenue}</span>
+          </p>
+
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold">Teams by Event</h2>
+            <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-surface text-foreground-muted">
+                  <tr>
+                    <th className="px-3 py-2">Event</th>
+                    <th className="px-3 py-2">Teams</th>
+                    <th className="px-3 py-2">Paid</th>
+                    <th className="px-3 py-2">Pending</th>
+                    <th className="px-3 py-2">Failed</th>
+                    <th className="px-3 py-2">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.byEvent.map((ev) => (
+                    <tr
+                      key={ev.event_id}
+                      onClick={() => filterByEvent(ev.event_id)}
+                      className="cursor-pointer border-t border-border hover:bg-raised"
+                      title="Filter the teams list to this event"
+                    >
+                      <td className="px-3 py-2">{ev.event_name}</td>
+                      <td className="px-3 py-2">{ev.teams}</td>
+                      <td className="px-3 py-2 text-accent">{ev.paid ?? 0}</td>
+                      <td className="px-3 py-2 text-primary">{ev.created ?? 0}</td>
+                      <td className="px-3 py-2 text-red-400">{ev.failed ?? 0}</td>
+                      <td className="px-3 py-2">₹{ev.revenue}</td>
+                    </tr>
+                  ))}
+                  {stats.byEvent.length === 0 && (
+                    <tr>
+                      <td className="px-3 py-4 text-foreground-muted" colSpan={6}>No registrations yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      <h2 className="mt-8 text-lg font-semibold">Teams</h2>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           load();
         }}
-        className="mt-6 flex flex-wrap gap-3"
+        className="mt-3 flex flex-wrap gap-3"
       >
         <input
           className={fieldClass}
@@ -216,6 +303,7 @@ export default function AdminDashboard() {
           onDone={() => {
             setAddMemberFor(null);
             load();
+            loadStats();
           }}
         />
       )}

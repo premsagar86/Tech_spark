@@ -51,6 +51,7 @@ export const api = {
   adminLogout: () => request("/api/admin/logout", { method: "POST" }, { auth: "admin" }),
   listRegistrations: (params = {}) =>
     request(`/api/admin/registrations?${new URLSearchParams(params)}`, {}, { auth: "admin" }),
+  getAdminStats: () => request("/api/admin/stats", {}, { auth: "admin" }),
   exportRegistrationsCsv: (params = {}) =>
     request(`/api/admin/registrations?${new URLSearchParams({ ...params, format: "csv" })}`, {}, { auth: "admin" }),
   confirmPaymentOverride: (id) =>
