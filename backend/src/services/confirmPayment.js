@@ -1,6 +1,5 @@
 import { pool } from "../db/pool.js";
 import { checkInCodeFor } from "../utils/generateCode.js";
-import { sendPaymentConfirmationWhatsApp } from "./whatsapp.js";
 import { sendConfirmationEmail } from "./email.js";
 import { issueParticipantToken } from "../middleware/participantAuth.js";
 
@@ -53,23 +52,14 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
     conn.release();
   }
 
-  // Side effects, deliberately outside the transaction and isolated from each
-  // other — a WhatsApp or email failure must never undo the payment confirmation.
+  // Side effect, deliberately outside the transaction — an email failure
+  // must never undo the payment confirmation.
   const [[registration]] = await pool.query("SELECT * FROM registrations WHERE id = ?", [registrationId]);
   const [participants] = await pool.query(
     "SELECT * FROM participants WHERE registration_id = ? ORDER BY participant_order",
     [registrationId]
   );
   const leader = participants[0];
-
-  try {
-    if (leader && !registration.notified_at) {
-      await sendPaymentConfirmationWhatsApp(leader, registration);
-      await pool.query("UPDATE registrations SET notified_at = NOW() WHERE id = ?", [registrationId]);
-    }
-  } catch (err) {
-    console.error("WhatsApp send failed", err);
-  }
 
   for (const p of participants) {
     if (!p.email || p.confirmation_email_sent_at) continue;

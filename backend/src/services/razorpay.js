@@ -2,7 +2,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 
 // Constructed lazily so a placeholder RAZORPAY_KEY_ID during local dev
-// doesn't risk crashing server boot (consistent with whatsapp.js).
+// doesn't risk crashing server boot.
 let razorpay;
 function getClient() {
   if (!razorpay) {
