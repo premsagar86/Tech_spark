@@ -81,7 +81,7 @@ export default function MyRegistrationCard() {
       <div className="rounded-xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="font-body text-lg font-semibold normal-case tracking-normal">
+            <h3 className="font-body text-lg font-semibold normal-case tracking-normal text-primary">
               {data.registration.team_name || leader?.full_name}
             </h3>
             <div className="text-sm text-foreground-muted">{data.registration.registration_code}</div>

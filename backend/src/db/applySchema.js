@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import mysql from "mysql2/promise";
+import { migrateSchema } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,47 +22,19 @@ async function applySchema() {
 
   const sql = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
   await connection.query(sql);
+  await connection.end();
 
   // CREATE TABLE IF NOT EXISTS above won't add new columns to a table that
-  // already existed before this column was introduced — migrate it here.
-  // No version-safe `ADD COLUMN IF NOT EXISTS` across MySQL versions, so
-  // just attempt it and ignore "column already exists".
-  try {
-    await connection.query(
-      "ALTER TABLE admins ADD COLUMN role ENUM('admin','scanner') NOT NULL DEFAULT 'admin'"
-    );
-    console.log("Migrated: added admins.role");
-  } catch (err) {
-    if (err.code !== "ER_DUP_FIELDNAME") throw err;
-  }
+  // already existed before this column was introduced — migrateSchema() (the
+  // same function server.js runs on every boot) handles that via the shared pool.
+  await migrateSchema();
 
-  try {
-    await connection.query(
-      `ALTER TABLE registrations
-         ADD COLUMN score DECIMAL(10,2) NULL,
-         ADD COLUMN score_updated_at TIMESTAMP NULL,
-         ADD COLUMN score_updated_by INT NULL,
-         ADD FOREIGN KEY (score_updated_by) REFERENCES admins(id)`
-    );
-    console.log("Migrated: added registrations.score*");
-  } catch (err) {
-    if (err.code !== "ER_DUP_FIELDNAME") throw err;
-  }
-
-  try {
-    await connection.query(
-      "ALTER TABLE participants ADD COLUMN github_url VARCHAR(255) NULL, ADD COLUMN linkedin_url VARCHAR(255) NULL"
-    );
-    console.log("Migrated: added participants.github_url/linkedin_url");
-  } catch (err) {
-    if (err.code !== "ER_DUP_FIELDNAME") throw err;
-  }
-
-  await connection.end();
   console.log(`Schema applied to \`${dbName}\`.`);
 }
 
-applySchema().catch((err) => {
-  console.error("Failed to apply schema:", err.message);
-  process.exit(1);
-});
+applySchema()
+  .then(() => process.exit(0)) // migrateSchema() uses the pool, which otherwise keeps the process alive
+  .catch((err) => {
+    console.error("Failed to apply schema:", err.message);
+    process.exit(1);
+  });

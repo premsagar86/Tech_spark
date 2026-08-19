@@ -73,7 +73,7 @@ export default function Leaderboard() {
                 {leaderboard.map((row, i) => (
                   <tr key={row.id} className="border-t border-border">
                     <td className="px-4 py-2 font-semibold text-primary">{i + 1}</td>
-                    <td className="px-4 py-2">{row.team_name || row.leader_name}</td>
+                    <td className="px-4 py-2 font-semibold text-primary">{row.team_name || row.leader_name}</td>
                     <td className="px-4 py-2 text-right font-semibold">{row.score}</td>
                   </tr>
                 ))}

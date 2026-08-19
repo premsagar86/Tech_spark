@@ -1664,3 +1664,36 @@ run via the existing `npm run db:schema` script, no new tooling introduced.
   gives a different message, `"Invalid or expired session"`. The route itself was confirmed deployed
   and correctly wired, same `{ auth: "admin" }` pattern as every other working admin call — this was
   a missing client-side session, not a code defect in the score feature.)
+
+### Self-healing schema migrations
+
+Once the admin auth gap was fixed, saving a score started 500ing instead — `Internal server error`.
+Traced to the score columns simply not existing on the **production** database: `npm run db:schema`
+(`applySchema.js`) had only ever been run against the local dev DB this session, never against
+Railway's. This exposed a structural gap, not just a one-off miss — a schema change now required a
+manual, easy-to-forget "remember to also migrate prod" step, and it already caused a real
+bug. Fixed the class, not just the instance: the idempotent `ALTER TABLE ... ADD COLUMN` migrations
+(try/catch, ignoring `ER_DUP_FIELDNAME`) moved out of `applySchema.js` into
+`backend/src/db/migrate.js`'s `migrateSchema()`, which now runs automatically on **every server
+boot** (`server.js`, right after the DB connection check) using the existing pool — cheap (a few
+no-op `ALTER` attempts once columns exist) and self-healing, so this class of bug can't recur.
+`applySchema.js` (still needed for a genuinely fresh install) now calls the same function instead of
+duplicating the ALTER statements.
+
+### Home page polish (third follow-up pass)
+
+- Team name is now color-highlighted (`text-primary`) on both the home registration card and the
+  `/leaderboard` ranking table.
+- **"Events" removed from the nav** — now redundant with the "Other events you can join" section
+  already inline on Home; the `/events` route itself is untouched, just not linked from the nav.
+- **"Status" nav link kept**, not removed — it's the only no-login lookup-by-code path, independent
+  of the persistent email+mobile session. Removing "Events" from `baseLinks` naturally left "Status"
+  as the last always-visible link, directly before the conditional Login/Leaderboard entry, which
+  was the requested ordering.
+- Confirmation email and the magic sign-in link email were both reported not arriving in production.
+  Both share the same `transporter`/`EMAIL_FROM` in `email.js`, so a shared-cause failure (Railway's
+  env vars not actually holding the current Brevo values, or not redeployed since `.env` was last
+  changed locally) is the likely explanation — consistent with the recurring pattern this session of
+  local `.env` edits not being mirrored into Railway's dashboard. No code change made blind; the
+  existing boot-time `Mail transport configured: ...` log plus the per-send failure logs are the
+  tool for confirming this from real evidence once the user pulls them from Railway.

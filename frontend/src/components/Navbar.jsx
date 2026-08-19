@@ -12,7 +12,6 @@ import {
 
 const baseLinks = [
   { to: "/", label: "Home" },
-  { to: "/events", label: "Events" },
   { to: "/status", label: "Status" },
 ];
 
