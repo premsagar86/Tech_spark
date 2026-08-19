@@ -110,6 +110,18 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleSetScore(id, score) {
+    setBusyId(id);
+    try {
+      await api.setRegistrationScore(id, score);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleExportCsv() {
     const params = {};
     if (search) params.search = search;
@@ -247,6 +259,7 @@ export default function AdminDashboard() {
               <th className="px-3 py-2">Event</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Size</th>
+              <th className="px-3 py-2">Score</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
@@ -262,6 +275,9 @@ export default function AdminDashboard() {
                   </span>
                 </td>
                 <td className="px-3 py-2">{r.team_size}</td>
+                <td className="px-3 py-2">
+                  <ScoreCell registration={r} busy={busyId === r.id} onSave={(score) => handleSetScore(r.id, score)} />
+                </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-2">
                     {r.payment_status === "created" && (
@@ -308,6 +324,29 @@ export default function AdminDashboard() {
         />
       )}
     </section>
+  );
+}
+
+function ScoreCell({ registration, busy, onSave }) {
+  const [value, setValue] = useState(registration.score ?? "");
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="number"
+        step="0.01"
+        className="w-20 rounded-lg border border-border bg-raised px-2 py-1 text-sm text-foreground focus:border-primary focus:outline-none"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <button
+        disabled={busy || value === ""}
+        onClick={() => onSave(Number(value))}
+        className="rounded-full border border-border px-2 py-1 text-xs hover:border-primary disabled:opacity-50"
+      >
+        Save
+      </button>
+    </div>
   );
 }
 

@@ -35,6 +35,28 @@ async function applySchema() {
     if (err.code !== "ER_DUP_FIELDNAME") throw err;
   }
 
+  try {
+    await connection.query(
+      `ALTER TABLE registrations
+         ADD COLUMN score DECIMAL(10,2) NULL,
+         ADD COLUMN score_updated_at TIMESTAMP NULL,
+         ADD COLUMN score_updated_by INT NULL,
+         ADD FOREIGN KEY (score_updated_by) REFERENCES admins(id)`
+    );
+    console.log("Migrated: added registrations.score*");
+  } catch (err) {
+    if (err.code !== "ER_DUP_FIELDNAME") throw err;
+  }
+
+  try {
+    await connection.query(
+      "ALTER TABLE participants ADD COLUMN github_url VARCHAR(255) NULL, ADD COLUMN linkedin_url VARCHAR(255) NULL"
+    );
+    console.log("Migrated: added participants.github_url/linkedin_url");
+  } catch (err) {
+    if (err.code !== "ER_DUP_FIELDNAME") throw err;
+  }
+
   await connection.end();
   console.log(`Schema applied to \`${dbName}\`.`);
 }

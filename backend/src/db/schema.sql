@@ -41,9 +41,13 @@ CREATE TABLE IF NOT EXISTS registrations (
   payment_confirmed_by  INT NULL,
   payment_confirmed_at  TIMESTAMP NULL,
   notified_at           TIMESTAMP NULL,
+  score                 DECIMAL(10,2) NULL,
+  score_updated_at      TIMESTAMP NULL,
+  score_updated_by      INT NULL,
   created_at            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (event_id) REFERENCES events(id),
-  FOREIGN KEY (payment_confirmed_by) REFERENCES admins(id)
+  FOREIGN KEY (payment_confirmed_by) REFERENCES admins(id),
+  FOREIGN KEY (score_updated_by) REFERENCES admins(id)
 );
 
 CREATE TABLE IF NOT EXISTS participants (
@@ -59,6 +63,8 @@ CREATE TABLE IF NOT EXISTS participants (
   year                VARCHAR(20),
   mobile              VARCHAR(10),
   email               VARCHAR(150),
+  github_url          VARCHAR(255),
+  linkedin_url        VARCHAR(255),
   check_in_code       VARCHAR(30)  UNIQUE,
   checked_in          BOOLEAN      NOT NULL DEFAULT FALSE,
   checked_in_at       TIMESTAMP    NULL,

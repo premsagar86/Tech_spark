@@ -1,6 +1,6 @@
 import { pool } from "../db/pool.js";
 import { confirmPayment } from "../services/confirmPayment.js";
-import { searchRegistrations, getRegistrationById, getRegistrationStats } from "../models/registrations.model.js";
+import { searchRegistrations, getRegistrationById, getRegistrationStats, setScore } from "../models/registrations.model.js";
 import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
 
 function httpError(status, message) {
@@ -84,6 +84,21 @@ export async function getStats(req, res, next) {
 // Manual override for edge cases (e.g. webhook + signature both somehow
 // failed) — an admin should sanity-check the order's real status in the
 // Razorpay dashboard before using either of these (Part 4).
+export async function setRegistrationScore(req, res, next) {
+  try {
+    const registration = await getRegistrationById(req.params.id);
+    if (!registration) return res.status(404).json({ error: "Registration not found" });
+
+    const score = Number(req.body.score);
+    if (!Number.isFinite(score)) throw httpError(400, "Score must be a number");
+
+    await setScore(registration.id, score, req.admin.adminId);
+    res.json({ ok: true, score });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function confirmPaymentOverride(req, res, next) {
   try {
     const registration = await getRegistrationById(req.params.id);

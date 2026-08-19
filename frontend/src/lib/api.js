@@ -47,6 +47,7 @@ export const api = {
   // Events
   getEvents: () => request("/api/events"),
   getEvent: (slug) => request(`/api/events/${slug}`),
+  getLeaderboard: (slug) => request(`/api/events/${slug}/leaderboard`),
 
   // Registrations
   register: (payload) => request("/api/registrations", { method: "POST", body: JSON.stringify(payload) }),
@@ -61,6 +62,8 @@ export const api = {
 
   // Participants
   getMyRegistration: () => request("/api/participants/me", {}, { auth: "participant" }),
+  updateMyProfile: (payload) =>
+    request("/api/participants/me/profile", { method: "PATCH", body: JSON.stringify(payload) }, { auth: "participant" }),
   requestMagicLink: (payload) => request("/api/participants/request-link", { method: "POST", body: JSON.stringify(payload) }),
   verifyMagicLink: (token) => request(`/api/participants/verify-link?token=${encodeURIComponent(token)}`),
 
@@ -75,6 +78,8 @@ export const api = {
     request(`/api/admin/registrations/${id}/confirm-payment`, { method: "PATCH" }, { auth: "admin" }),
   rejectPaymentOverride: (id) =>
     request(`/api/admin/registrations/${id}/reject-payment`, { method: "PATCH" }, { auth: "admin" }),
+  setRegistrationScore: (id, score) =>
+    request(`/api/admin/registrations/${id}/score`, { method: "PATCH", body: JSON.stringify({ score }) }, { auth: "admin" }),
   addTeamMember: (id, payload) =>
     request(`/api/admin/registrations/${id}/participants`, { method: "POST", body: JSON.stringify(payload) }, { auth: "admin" }),
   verifyCheckInCode: (code) => request(`/api/admin/verify/${code}`, {}, { auth: "admin" }),

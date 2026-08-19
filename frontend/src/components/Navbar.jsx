@@ -13,6 +13,7 @@ import {
 const baseLinks = [
   { to: "/", label: "Home" },
   { to: "/events", label: "Events" },
+  { to: "/leaderboard", label: "Leaderboard" },
   { to: "/status", label: "Status" },
 ];
 
@@ -77,13 +78,25 @@ export default function Navbar() {
         </div>
 
         <button
-          className="text-foreground md:hidden"
+          className="relative h-6 w-6 text-foreground md:hidden"
           onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle menu"
+          aria-label={open ? "Close menu" : "Open menu"}
         >
-          <span className="block h-0.5 w-6 bg-current" />
-          <span className="mt-1.5 block h-0.5 w-6 bg-current" />
-          <span className="mt-1.5 block h-0.5 w-6 bg-current" />
+          <span
+            className={`absolute left-0 block h-0.5 w-6 bg-current transition-all duration-200 ${
+              open ? "top-[11px] rotate-45" : "top-[6px] rotate-0"
+            }`}
+          />
+          <span
+            className={`absolute left-0 top-[11px] block h-0.5 w-6 bg-current transition-opacity duration-200 ${
+              open ? "opacity-0" : "opacity-100"
+            }`}
+          />
+          <span
+            className={`absolute left-0 block h-0.5 w-6 bg-current transition-all duration-200 ${
+              open ? "top-[11px] -rotate-45" : "top-[16px] rotate-0"
+            }`}
+          />
         </button>
       </nav>
 

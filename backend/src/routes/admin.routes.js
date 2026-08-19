@@ -9,6 +9,7 @@ import {
   addTeamMember,
   verifyCheckInCode,
   checkInParticipant,
+  setRegistrationScore,
 } from "../controllers/admin.controller.js";
 
 const router = Router();
@@ -19,6 +20,7 @@ router.get("/registrations", requireAdmin, requireRole("admin"), listRegistratio
 router.get("/stats", requireAdmin, requireRole("admin"), getStats);
 router.patch("/registrations/:id/confirm-payment", requireAdmin, requireRole("admin"), confirmPaymentOverride);
 router.patch("/registrations/:id/reject-payment", requireAdmin, requireRole("admin"), rejectPaymentOverride);
+router.patch("/registrations/:id/score", requireAdmin, requireRole("admin"), setRegistrationScore);
 router.post("/registrations/:id/participants", requireAdmin, requireRole("admin"), addTeamMember);
 
 router.get("/verify/:code", requireAdmin, verifyCheckInCode);

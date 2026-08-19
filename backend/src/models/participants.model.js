@@ -22,3 +22,11 @@ export async function getParticipantByEmail(email) {
   const [[participant]] = await pool.query("SELECT * FROM participants WHERE email = ?", [email]);
   return participant;
 }
+
+export async function updateParticipantProfile(id, { githubUrl, linkedinUrl }) {
+  await pool.query(
+    "UPDATE participants SET github_url = ?, linkedin_url = ? WHERE id = ?",
+    [githubUrl || null, linkedinUrl || null, id]
+  );
+  return getParticipantById(id);
+}

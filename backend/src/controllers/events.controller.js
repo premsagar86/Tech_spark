@@ -1,4 +1,5 @@
 import { listEvents, getEventBySlug } from "../models/events.model.js";
+import { getLeaderboard } from "../models/registrations.model.js";
 
 export async function getEvents(req, res, next) {
   try {
@@ -15,6 +16,17 @@ export async function getEvent(req, res, next) {
     const event = await getEventBySlug(req.params.slug);
     if (!event) return res.status(404).json({ error: "Event not found" });
     res.json({ event });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getEventLeaderboard(req, res, next) {
+  try {
+    const event = await getEventBySlug(req.params.slug);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    const leaderboard = await getLeaderboard(event.id);
+    res.json({ event: { name: event.name, slug: event.slug }, leaderboard });
   } catch (err) {
     next(err);
   }

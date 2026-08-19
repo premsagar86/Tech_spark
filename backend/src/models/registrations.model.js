@@ -6,8 +6,35 @@ export async function getRegistrationByCode(code) {
 }
 
 export async function getRegistrationById(id) {
-  const [[registration]] = await pool.query("SELECT * FROM registrations WHERE id = ?", [id]);
+  const [[registration]] = await pool.query(
+    `SELECT r.*, e.name AS event_name, e.slug AS event_slug
+     FROM registrations r
+     JOIN events e ON e.id = r.event_id
+     WHERE r.id = ?`,
+    [id]
+  );
   return registration;
+}
+
+// Public leaderboard (Part — post-login portal) — only fields safe to show to
+// anyone: team/leader name and score. No roll numbers, emails, or mobiles.
+export async function getLeaderboard(eventId) {
+  const [rows] = await pool.query(
+    `SELECT r.id, r.team_name, r.score,
+            (SELECT full_name FROM participants p WHERE p.registration_id = r.id AND p.participant_order = 1) AS leader_name
+     FROM registrations r
+     WHERE r.event_id = ? AND r.score IS NOT NULL
+     ORDER BY r.score DESC`,
+    [eventId]
+  );
+  return rows;
+}
+
+export async function setScore(registrationId, score, adminId) {
+  await pool.query(
+    "UPDATE registrations SET score = ?, score_updated_at = NOW(), score_updated_by = ? WHERE id = ?",
+    [score, adminId, registrationId]
+  );
 }
 
 export async function listParticipantsForRegistration(registrationId) {

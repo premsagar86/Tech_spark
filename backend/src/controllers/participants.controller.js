@@ -2,7 +2,12 @@ import { pool } from "../db/pool.js";
 import { issueParticipantToken } from "../middleware/participantAuth.js";
 import { issueRecoveryToken, verifyRecoveryToken } from "../services/passwordReset.js";
 import { sendMagicLinkEmail } from "../services/email.js";
-import { getParticipantByEmailAndMobile, getParticipantByEmail, getParticipantById } from "../models/participants.model.js";
+import {
+  getParticipantByEmailAndMobile,
+  getParticipantByEmail,
+  getParticipantById,
+  updateParticipantProfile,
+} from "../models/participants.model.js";
 import { listParticipantsForRegistration, getRegistrationById } from "../models/registrations.model.js";
 
 export async function loginParticipant(req, res, next) {
@@ -27,6 +32,16 @@ export async function getMyRegistration(req, res, next) {
     if (!registration) return res.status(404).json({ error: "Registration not found" });
     const participants = await listParticipantsForRegistration(req.participant.registrationId);
     res.json({ registration, participants });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateMyProfile(req, res, next) {
+  try {
+    const { githubUrl, linkedinUrl } = req.body;
+    const participant = await updateParticipantProfile(req.participant.participantId, { githubUrl, linkedinUrl });
+    res.json({ participant });
   } catch (err) {
     next(err);
   }
