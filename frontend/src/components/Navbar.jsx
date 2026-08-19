@@ -15,6 +15,14 @@ const baseLinks = [
   { to: "/status", label: "Status" },
 ];
 
+// "Events" only makes sense as a nav link before login — once logged in, Home
+// already surfaces the events you haven't registered for yet, inline.
+const loggedOutLinks = [
+  { to: "/", label: "Home" },
+  { to: "/events", label: "Events" },
+  { to: "/status", label: "Status" },
+];
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -42,7 +50,7 @@ export default function Navbar() {
 
   const links = isLoggedIn
     ? [...baseLinks, { to: "/leaderboard", label: "Leaderboard" }]
-    : [...baseLinks, { to: "/login", label: "Login" }];
+    : [...loggedOutLinks, { to: "/login", label: "Login" }];
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">

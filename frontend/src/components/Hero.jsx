@@ -1,12 +1,24 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import Countdown from "./Countdown.jsx";
 import { useScrollReveal } from "../animations/scrollReveal.js";
+import { getParticipantToken, getAdminToken } from "../lib/session.js";
 
 export default function Hero() {
   const ref = useRef(null);
   useScrollReveal(ref, { stagger: true });
+
+  // Same-page login/logout doesn't trigger a route change, so re-check on the
+  // shared session event instead of only at mount (see MyRegistrationCard.jsx).
+  const [, setSessionTick] = useState(0);
+  useEffect(() => {
+    const handler = () => setSessionTick((n) => n + 1);
+    window.addEventListener("ts2026-session-changed", handler);
+    return () => window.removeEventListener("ts2026-session-changed", handler);
+  }, []);
+
+  const isLoggedIn = Boolean(getParticipantToken() || getAdminToken());
 
   return (
     <section className="mx-auto flex min-h-[80vh] max-w-6xl flex-col items-center justify-center gap-8 px-4 py-24 text-center">
@@ -22,14 +34,16 @@ export default function Hero() {
         <hr className="w-full border-border" />
         <Countdown />
 
-        <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-          <Link
-            to="/events"
-            className="inline-block rounded-full bg-primary px-8 py-3 font-semibold text-background shadow-lg shadow-primary/30 transition-colors hover:bg-primary-light"
-          >
-            Explore Events
-          </Link>
-        </motion.div>
+        {!isLoggedIn && (
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+            <Link
+              to="/events"
+              className="inline-block rounded-full bg-primary px-8 py-3 font-semibold text-background shadow-lg shadow-primary/30 transition-colors hover:bg-primary-light"
+            >
+              Explore Events
+            </Link>
+          </motion.div>
+        )}
       </div>
     </section>
   );

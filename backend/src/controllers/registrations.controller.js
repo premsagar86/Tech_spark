@@ -115,7 +115,11 @@ export async function createRegistration(req, res, next) {
     });
   } catch (err) {
     console.error("Razorpay order creation failed:", err);
-    await pool.query("UPDATE registrations SET payment_status = 'failed' WHERE id = ?", [registrationId]);
+    // Delete rather than mark 'failed' — the participant never even saw a
+    // payment screen, so there's nothing to retry, and leaving the row behind
+    // would hold their roll number hostage against uniq_event_roll, blocking
+    // any future legitimate registration attempt with the same roll number.
+    await pool.query("DELETE FROM registrations WHERE id = ?", [registrationId]);
     return next(httpError(502, "Could not initialize payment, please try again"));
   }
 }
