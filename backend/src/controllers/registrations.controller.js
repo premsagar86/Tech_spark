@@ -15,10 +15,14 @@ function httpError(status, message) {
 // Razorpay order call happening only *after* commit (Part 2, step 3).
 export async function createRegistration(req, res, next) {
   const { eventSlug, teamName, participants } = req.body;
-  const conn = await pool.getConnection();
-  let registrationId, registrationCode, event, paymentStatus;
+  // Temporary: the raw payload for this route came back reported as empty/malformed
+  // from a live client once with no reproduction locally — log it here until that's
+  // tracked down, then remove.
+  console.log("POST /api/registrations body:", JSON.stringify(req.body));
+  let registrationId, registrationCode, event, paymentStatus, conn;
 
   try {
+    conn = await pool.getConnection();
     await conn.beginTransaction();
 
     const [[evt]] = await conn.query("SELECT * FROM events WHERE slug = ? FOR UPDATE", [eventSlug]);
@@ -32,6 +36,12 @@ export async function createRegistration(req, res, next) {
     const teamSize = participants?.length ?? 0;
     if (teamSize < event.min_team_size || teamSize > event.max_team_size) {
       throw httpError(400, `Team size must be between ${event.min_team_size} and ${event.max_team_size}`);
+    }
+
+    for (const [i, p] of (participants ?? []).entries()) {
+      if (!p || typeof p !== "object" || !p.fullName?.trim() || !p.rollNumber?.trim()) {
+        throw httpError(400, `Participant ${i + 1} is missing required details (full name, roll number)`);
+      }
     }
 
     if (event.max_registrations !== null) {
@@ -69,22 +79,26 @@ export async function createRegistration(req, res, next) {
 
     await conn.commit();
   } catch (err) {
-    await conn.rollback();
+    if (conn) await conn.rollback();
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(409).json({ error: "One or more roll numbers are already registered for this event" });
     }
     return next(err);
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 
   if (paymentStatus === "not_required") {
-    const result = await confirmPayment(registrationId);
-    return res.status(201).json({
-      registrationCode,
-      paymentRequired: false,
-      participantToken: result.participantToken,
-    });
+    try {
+      const result = await confirmPayment(registrationId);
+      return res.status(201).json({
+        registrationCode,
+        paymentRequired: false,
+        participantToken: result.participantToken,
+      });
+    } catch (err) {
+      return next(err);
+    }
   }
 
   // Outside the transaction, on purpose — an external HTTP call has no

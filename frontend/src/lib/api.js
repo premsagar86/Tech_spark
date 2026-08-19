@@ -2,6 +2,8 @@ import { getAdminToken, getParticipantToken } from "./session.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function request(path, options = {}, { auth } = {}) {
   const headers = { "Content-Type": "application/json", ...options.headers };
 
@@ -13,11 +15,26 @@ async function request(path, options = {}, { auth } = {}) {
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    headers,
-    credentials: "include",
-    ...options,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      headers,
+      credentials: "include",
+      signal: controller.signal,
+      ...options,
+    });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("The server took too long to respond. Please try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);
