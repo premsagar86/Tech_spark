@@ -114,6 +114,7 @@ export async function createRegistration(req, res, next) {
       amount: event.fee,
     });
   } catch (err) {
+    console.error("Razorpay order creation failed:", err);
     await pool.query("UPDATE registrations SET payment_status = 'failed' WHERE id = ?", [registrationId]);
     return next(httpError(502, "Could not initialize payment, please try again"));
   }
