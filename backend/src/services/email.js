@@ -1,5 +1,6 @@
 import mjml2html from "mjml";
 import nodemailer from "nodemailer";
+import QRCode from "qrcode";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -38,8 +39,12 @@ function confirmationTemplate({ participant, registration, teamRoster }) {
       <strong>Registration Code:</strong> ${registration.registration_code}<br/>
       <strong>Team Members:</strong> ${teamRoster.map((p) => p.full_name).join(", ")}
     </mj-text>
+    <mj-image src="cid:checkinQr" width="200px" alt="Your check-in QR code" />
+    <mj-text align="center" color="#f5f3ee">
+      Use this QR code to verify your profile at check-in — just show this email at the event, no login needed.
+    </mj-text>
     <mj-text color="#f5f3ee">
-      Log in with your email + mobile number to view your personal check-in QR anytime.
+      You can also log in with your email + mobile number anytime to view your personal check-in QR.
     </mj-text>
     <mj-button background-color="#ff6b00" href="${process.env.FRONTEND_URL}/login">
       View My QR Code
@@ -74,11 +79,13 @@ function magicLinkTemplate({ participant, linkUrl }) {
 
 export async function sendConfirmationEmail(participant, registration, teamRoster) {
   const { html } = mjml2html(confirmationTemplate({ participant, registration, teamRoster }));
+  const qrBuffer = await QRCode.toBuffer(participant.check_in_code, { width: 240, margin: 1 });
   await transporter.sendMail({
     from: process.env.EMAIL_FROM,
     to: participant.email,
     subject: "🎉 Your TechSpark 2026 registration is confirmed!",
     html,
+    attachments: [{ filename: "check-in-qr.png", content: qrBuffer, cid: "checkinQr" }],
   });
 }
 
