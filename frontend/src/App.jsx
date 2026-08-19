@@ -8,6 +8,7 @@ import Register from "./pages/Register.jsx";
 import Status from "./pages/Status.jsx";
 import Leaderboard from "./pages/Leaderboard.jsx";
 import Login from "./pages/Login.jsx";
+import Profile from "./pages/Profile.jsx";
 import MagicLink from "./pages/MagicLink.jsx";
 import AdminDashboard from "./admin/AdminDashboard.jsx";
 import AdminScanner from "./admin/AdminScanner.jsx";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/status" element={<PublicLayout><Status /></PublicLayout>} />
         <Route path="/leaderboard" element={<PublicLayout><Leaderboard /></PublicLayout>} />
         <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
+        <Route path="/profile" element={<PublicLayout><Profile /></PublicLayout>} />
         <Route path="/login/magic" element={<PublicLayout><MagicLink /></PublicLayout>} />
 
         <Route path="/admin" element={<AdminRoute roles={["admin"]}><AdminDashboard /></AdminRoute>} />

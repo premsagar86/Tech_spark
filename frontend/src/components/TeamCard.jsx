@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 
 export function ParticipantQR({ participant, size = 140 }) {
   const canvasRef = useRef(null);
+  const isLeader = participant.participant_order === 1;
 
   useEffect(() => {
     if (canvasRef.current && participant.check_in_code) {
@@ -11,7 +12,17 @@ export function ParticipantQR({ participant, size = 140 }) {
   }, [participant.check_in_code, size]);
 
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-raised p-4">
+    <div
+      className={`flex flex-col items-center gap-2 rounded-lg border p-4 ${
+        isLeader ? "border-primary bg-primary/5" : "border-border bg-raised"
+      }`}
+    >
+      {isLeader && (
+        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+          Team Leader
+        </span>
+      )}
+
       {participant.check_in_code ? (
         <canvas ref={canvasRef} />
       ) : (
@@ -22,9 +33,29 @@ export function ParticipantQR({ participant, size = 140 }) {
           QR available once payment is confirmed
         </div>
       )}
+
       <div className="text-center">
         <div className="text-sm font-semibold">{participant.full_name}</div>
         <div className="text-xs text-foreground-muted">{participant.roll_number}</div>
+        {isLeader && (
+          <div className="mt-1 space-y-0.5 text-xs text-foreground-muted">
+            {participant.college && <div>{participant.college}</div>}
+            {(participant.course || participant.branch) && (
+              <div>
+                {participant.course}
+                {participant.course && participant.branch && " • "}
+                {participant.branch}
+              </div>
+            )}
+            {participant.year && <div>{participant.year}</div>}
+          </div>
+        )}
+        {(participant.mobile || participant.email) && (
+          <div className="mt-1 space-y-0.5 text-xs text-foreground-muted">
+            {participant.mobile && <div>{participant.mobile}</div>}
+            {participant.email && <div>{participant.email}</div>}
+          </div>
+        )}
         {participant.checked_in && (
           <div className="mt-1 text-xs text-accent">
             Checked in{participant.checked_in_at ? ` at ${new Date(participant.checked_in_at).toLocaleString()}` : ""}
@@ -75,9 +106,12 @@ export default function TeamCard({ registration, participants, onRetryPayment })
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {participants.map((p) => (
-          <ParticipantQR key={p.id} participant={p} />
-        ))}
+        {participants
+          .slice()
+          .sort((a, b) => a.participant_order - b.participant_order)
+          .map((p) => (
+            <ParticipantQR key={p.id} participant={p} />
+          ))}
       </div>
     </div>
   );

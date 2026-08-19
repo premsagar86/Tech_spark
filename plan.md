@@ -500,6 +500,7 @@ whenever they visit the site again — not require re-typing a code every time.
 |---|---|---|---|
 | GET | `/api/events` | — | List events |
 | GET | `/api/events/:slug` | — | Single event detail |
+| GET | `/api/events/:slug/leaderboard` | — | Public top-scores list for an event (Part 13) |
 | POST | `/api/registrations` | — | Create registration + participants |
 | GET | `/api/registrations/:code` | — | Public status/QR lookup by code |
 | POST | `/api/registrations/:code/verify-payment` | — | Razorpay Checkout success callback, signature-verified |
@@ -509,12 +510,14 @@ whenever they visit the site again — not require re-typing a code every time.
 | GET | `/api/participants/me` | participant | Persistent "my team" view (Part 7) |
 | POST | `/api/participants/request-link` | — | Email → magic sign-in link (Part 7 account recovery) |
 | GET | `/api/participants/verify-link` | — | Consume the magic link → participant JWT |
+| PATCH | `/api/participants/me/profile` | participant | Update own `github_url`/`linkedin_url` (Part 13) |
 | POST | `/api/admin/login` | — | Admin auth, returns JWT |
 | POST | `/api/admin/forgot-password` | — | Email → reset link (Part 4) |
 | POST | `/api/admin/reset-password` | — | Token + new password → updates `password_hash` |
 | GET | `/api/admin/registrations` | admin | Search/filter/list + CSV export |
 | PATCH | `/api/admin/registrations/:id/confirm-payment` | admin | Manual override |
 | PATCH | `/api/admin/registrations/:id/reject-payment` | admin | Manual override |
+| PATCH | `/api/admin/registrations/:id/score` | admin | Set/update a registration's leaderboard score (Part 13) |
 | POST | `/api/admin/registrations/:id/participants` | admin | Add a team member to an existing registration, capped at `event.max_team_size` (Part 4) |
 | GET | `/api/admin/verify/:code` | admin | Event check-in `check_in_code` lookup |
 | PATCH | `/api/admin/participants/:id/check-in` | admin | Mark an individual as checked in |
@@ -1480,3 +1483,158 @@ export default {
   arrive, confirm each token works exactly once (a second use of the same link fails with "already
   used"), confirm an expired token is rejected, and confirm requesting a link for an email that
   doesn't exist returns the same generic response as one that does.
+
+---
+
+## Part 13 — Post-launch fixes & feature additions (implementation log)
+
+Everything below actually happened, after the initial build, in response to real bugs and follow-up
+feature requests — logged here (unlike Parts 1–12, which were written before implementation) so the
+reasoning behind each change survives past the conversation that produced it.
+
+### Registration reliability
+
+- **Hung "Processing…" on free-event registration** — `createRegistration` (Part 12) had two
+  `await`s (`pool.getConnection()`, and the free-event `confirmPayment()` call) sitting *outside*
+  its `try/catch`. The backend runs **Express 4** (not 5), which does not auto-forward a rejected
+  promise from an async route handler to error middleware — so any failure in either spot left the
+  request hanging forever with no response ever sent, instead of a clean error. Fixed by moving
+  connection acquisition inside the `try` and wrapping the free-event confirmation call in its own
+  `try/catch`, so every failure path now always produces a real HTTP response.
+- **Malformed `participants` payload** — added a check (missing `fullName`/`rollNumber` on any
+  participant → clean `400`) before the insert loop, instead of letting a bad element throw a raw
+  `TypeError` mid-transaction into a generic `500`.
+- **Client-side timeout** — `frontend/src/lib/api.js`'s shared `request()` now aborts after 15s via
+  `AbortController`, so a hung backend (the bug above, or any future one like it) surfaces a visible
+  error and re-enables the submit button instead of spinning indefinitely.
+- **Registration response was slow even once it worked** — traced to `confirmPayment()` (Part 5)
+  `await`ing the confirmation email's live SMTP send before returning, which the registration
+  controller in turn awaited before responding. Split the email-sending loop into its own
+  `sendConfirmationEmails()` helper and fire it **without** `await` (errors caught and logged
+  instead of propagating) — the HTTP response now returns as soon as the DB work commits; the email
+  still sends, just after the response rather than blocking it.
+- **Solo events showed a pointless "Team members" step** — `RegistrationWizard.jsx` now detects
+  `max_team_size <= 1` and omits the `"team"` step entirely (auto-filling empty `teamInfo`), going
+  straight from personal details to review/confirm instead of a no-op "no team members to add, click
+  Next" screen.
+- **Year field** was a free-text input; changed to a `<select>` (`personalDetailsSchema.year` is now
+  a `z.enum(["1st year", "2nd year", "3rd year"])`).
+
+### Deployment
+
+- **Amplify was building from the wrong GitHub repo** (`Bavana-Sruthi/Tech_spark` instead of
+  `premsagar86/Tech_spark`) — pushes to the real repo silently never triggered a build. No in-place
+  repo-swap option existed in the Amplify console for an existing app, so a new Amplify app was
+  created pointed at the correct repo instead (same `amplify.yml`, monorepo `appRoot: frontend`).
+- **`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`** on every request in Railway's logs — Railway sits behind a
+  proxy that sets `X-Forwarded-For`, but Express's `trust proxy` wasn't set, so `express-rate-limit`
+  couldn't safely identify client IPs. Fixed with `app.set("trust proxy", 1)`.
+- `GET /api/events` now sends `Cache-Control: public, max-age=60` — event data barely changes, and
+  the "slow event click" the user reported was actually the *initial* events fetch (clicking an event
+  card itself is a pure client-side state change off the already-fetched list, no per-click request).
+
+### Email delivery — the SMTP saga
+
+Getting the confirmation email actually delivered in production went through several real, distinct
+failures worth recording so the next one isn't a mystery:
+
+1. **`SMTP_USER`/`SMTP_PASS` were still the literal placeholder `xxxxx`** — real credentials had been
+   added under different env var names (`EMAIL_PASS`) that the code never read. `email.js` only ever
+   reads `SMTP_HOST`/`PORT`/`USER`/`PASS`.
+2. Switched to **Gmail SMTP** (`smtp.gmail.com`) with an app password — worked when verified *locally*
+   (`transporter.verify()`), but failed in production on Railway with `ETIMEDOUT` on `command: 'CONN'`
+   — the TCP connection itself never completed. Root cause, confirmed by Google's own "Recent
+   security activity" showing **zero** sign-in attempts from Railway's IP at all: Google
+   widely blocks/rate-limits outbound SMTP connections *to* Gmail *from* cloud/datacenter IP ranges
+   (AWS, GCP, Railway, etc.) — this is a platform-level block, not fixable via app-password
+   permissions or code. (Along the way, also added `family: 4` to force IPv4 in the nodemailer
+   transport, since containerized hosts often have broken outbound IPv6 routing that causes this
+   exact symptom too — real fix, just not the one that mattered here.)
+3. Switched to **Brevo's SMTP relay** (`smtp-relay.brevo.com`) instead — a transactional-email
+   provider built specifically for cloud-to-cloud sending, which is what this project's `.env` was
+   actually configured for originally, before the Gmail detour. Needed both the **Login** value and
+   the **SMTP key** from Brevo's SMTP & API settings page (not just the key alone — same
+   wrong-env-var-name mistake happened again, this time under a `KEY` variable the code didn't read).
+4. **`EMAIL_FROM` quoting** — `.env` stores it as `EMAIL_FROM="Name <addr>"`; local `dotenv` strips
+   the wrapping quotes automatically, but pasting the same line into a hosting dashboard (Railway)
+   does not, so the literal `"` characters can end up baked into the `From` header and get sends
+   silently rejected. `email.js` now strips wrapping quotes off `EMAIL_FROM` in code, defensively,
+   regardless of source.
+5. Added a one-time startup log (`Mail transport configured: host=... port=... user=... from=...`,
+   no secrets) so a future mismatch between `.env`/dashboard values and what the running container
+   actually loaded is visible immediately in the logs instead of requiring another round of guessing.
+
+### Confirmation email content
+
+- The QR code is now **embedded directly in the email** (`QRCode.toBuffer()` from the same `qrcode`
+  package the frontend already used for on-screen QR rendering, attached via nodemailer's `cid`
+  mechanism — more reliable across email clients than a base64 `data:` URI) instead of only being
+  reachable by logging into `/status`. Copy added: *"Use this QR code to verify your profile at
+  check-in — just show this email at the event, no login needed."*
+- Removed the now-redundant "View My QR Code" button (it only linked to the login page; the QR is
+  already inline).
+
+### Participant portal additions (new)
+
+- **Public leaderboard** (`GET /api/events/:slug/leaderboard`, `/leaderboard` page) — a score is
+  entered **manually by an admin, per registration/team** (new `registrations.score` /
+  `score_updated_at` / `score_updated_by` columns), not per individual participant. The public
+  endpoint only ever returns `team_name`/leader name + score — never roll numbers, emails, or
+  mobiles. Admin entry is a simple inline number input + Save per row on the existing Teams table
+  (`AdminDashboard.jsx`), reusing the same busy-state pattern as the existing Confirm/Reject actions.
+- **Optional profile links** — new `participants.github_url`/`linkedin_url` columns,
+  `PATCH /api/participants/me/profile` (participant-authenticated, edits only the logged-in
+  participant's own row — teammates can't edit each other's). Surfaced on `MyRegistrationCard.jsx` as
+  a "Complete your profile (optional, recommended)" section below the QR/team display.
+- **Differentiated welcome message** on `MyRegistrationCard.jsx` — solo registrations
+  (`participants.length === 1`) get *"Welcome, {name}! You're registered for {event}."*; team
+  registrations get *"Welcome, Team {team_name}! Your team is registered for {event}."*. Needed
+  `getRegistrationById` (Part 3/Part 12) to start joining `events` for the event name, which it
+  previously didn't.
+- **Mobile nav close affordance** — the hamburger button in `Navbar.jsx` now animates into an X when
+  the mobile menu is open (three bars → two rotated bars + one faded out), instead of staying a
+  static, unchanging icon with no visual "this will close it" cue.
+- Logout already navigated home (`Navbar.jsx`'s `handleLogout`) — confirmed already correct, no
+  change needed there.
+
+### Schema additions (Part 3 update)
+
+```sql
+-- registrations
+score             DECIMAL(10,2) NULL,
+score_updated_at  TIMESTAMP NULL,
+score_updated_by  INT NULL REFERENCES admins(id),
+
+-- participants
+github_url    VARCHAR(255) NULL,
+linkedin_url  VARCHAR(255) NULL,
+```
+
+Applied via the same idempotent migration pattern `applySchema.js` already used for `admins.role`:
+`schema.sql`'s `CREATE TABLE IF NOT EXISTS` gets the columns for fresh installs, and a try/catch
+`ALTER TABLE ... ADD COLUMN` (ignoring `ER_DUP_FIELDNAME`) migrates an already-deployed database —
+run via the existing `npm run db:schema` script, no new tooling introduced.
+
+### Participant portal follow-up refinements
+
+- **Leaderboard nav link** now only shows once logged in (moved out of the always-visible
+  `baseLinks` in `Navbar.jsx`) — **Events stays visible in both states**, since a participant may
+  want to register for a second/third event after their first, and hiding it could block that.
+- **Dedicated `/profile` page** (`frontend/src/pages/Profile.jsx`) — the GitHub/LinkedIn edit form
+  (previously inline on the home page card) moved here, alongside a read-only view of the logged-in
+  participant's own details (fuller for a leader — college/course/branch/year — since those fields
+  are never collected for teammates, same asymmetry as the team boxes below). A profile icon (inline
+  SVG, no new dependency) was added next to Logout in `Navbar.jsx`, shown only when logged in.
+- **Team details as leader-highlighted boxes, for every team member** — `TeamCard.jsx`'s
+  `ParticipantQR` now visually distinguishes the leader (highlighted border, "Team Leader" badge,
+  extra detail fields) from teammates (plain box, name/roll/mobile/email only). This lives in
+  `TeamCard.jsx` itself (not duplicated) since it's shared with the public `Status.jsx`
+  registration-code lookup, so both views benefit. `MyRegistrationCard.jsx` now always renders the
+  full team grid regardless of whether the logged-in participant is the leader — previously only the
+  leader saw `<TeamCard>` at all; a non-leader teammate who logged in only saw their own solo QR and
+  nothing about the rest of their team, which `getMyRegistration` already had the data for
+  (`listParticipantsForRegistration` returns the whole registration's roster, not just the caller).
+- **QR display was kept**, not removed, despite now also being emailed — deliberately, as a fallback:
+  email delivery broke multiple times this session before Brevo was working (see the SMTP saga
+  above), so a working on-portal QR is real insurance against a future email issue, not redundant
+  belt-and-suspenders.
