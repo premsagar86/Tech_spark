@@ -62,7 +62,12 @@ export async function requestMagicLink(req, res, next) {
         invalidateWith: participant.mobile, // stops working once the mobile on file changes
         secret: process.env.JWT_PARTICIPANT_SECRET,
       });
-      await sendMagicLinkEmail(participant, token);
+      // Not awaited — the response is identical either way (never reveal
+      // whether the email matched), so there's no reason to block on a live
+      // SMTP send. Same fix as the confirmation email's blocking-response bug.
+      sendMagicLinkEmail(participant, token).catch((err) =>
+        console.error(`Magic link email failed for participant ${participant.id}`, err)
+      );
     }
     res.json({ message: "If that email is on a registration, a sign-in link has been sent." });
   } catch (err) {
