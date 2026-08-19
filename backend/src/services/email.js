@@ -19,8 +19,14 @@ console.log(
 
 function fromAddress() {
   const match = EMAIL_FROM.match(/^(.*)<(.+)>$/);
-  if (match) return { name: match[1].trim() || undefined, email: match[2].trim() };
-  return { email: EMAIL_FROM };
+  const result = match ? { name: match[1].trim() || undefined, email: match[2].trim() } : { email: EMAIL_FROM };
+  // Catch a mismatched EMAIL_FROM here, with the actual value in the error —
+  // this dashboard/env mismatch has bitten this project three times now, and
+  // without this it only ever surfaces as Brevo's generic 400 downstream.
+  if (!/\S+@\S+\.\S+/.test(result.email)) {
+    throw new Error(`EMAIL_FROM is not a valid sender email: ${JSON.stringify(EMAIL_FROM)}`);
+  }
+  return result;
 }
 
 async function sendViaBrevo({ to, toName, subject, html, attachment }) {
