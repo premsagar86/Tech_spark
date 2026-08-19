@@ -1638,3 +1638,29 @@ run via the existing `npm run db:schema` script, no new tooling introduced.
   email delivery broke multiple times this session before Brevo was working (see the SMTP saga
   above), so a working on-portal QR is real insurance against a future email issue, not redundant
   belt-and-suspenders.
+
+### Home page rework (second follow-up pass)
+
+- **QR codes and team details split into separate sections** on Home — `TeamCard.jsx`'s canvas
+  rendering was pulled out into an exported `QRCanvas` primitive, reused by both the original
+  combined `ParticipantQR` (still used as-is by the public `Status.jsx` lookup page, unaffected) and
+  a new QR-only grid + a separate detail-only grid on `MyRegistrationCard.jsx` (leader box still
+  highlighted with the fuller field set, teammates plain — same asymmetry as before, just without a
+  QR inside the box this time).
+- **Home trimmed** — `Leadership` and `Administration` sections removed (only ever referenced in
+  `Home.jsx`, confirmed via grep before removing), keeping just `Hero`, `MyRegistrationCard`, and
+  `Coordinators`.
+- **"Other events you can join"** section added at the bottom of `MyRegistrationCard.jsx` — reuses
+  `EventCard`/`EventModal` exactly as `Events.jsx` does, fetches all events and filters out the one
+  matching the participant's own `registration.event_slug`, so a logged-in participant can register
+  for an additional event without leaving the home page.
+- **Admin action 401 handling** — `AdminDashboard.jsx`'s `load()` already redirected to `/login` on
+  an authentication failure; `handleConfirm`/`handleReject`/`handleSetScore` didn't, so a genuinely
+  expired admin session on any of those actions failed silently into an on-page error instead of
+  bouncing back to login. All three now share a `handleAuthError` helper with the same behavior as
+  `load()`. (The specific `PATCH /api/admin/registrations/:id/score` → `401 "Not authenticated"`
+  that surfaced this: traced to `requireAdmin` in `backend/src/middleware/adminAuth.js` — that exact
+  message only fires when no token at all was sent, cookie or header; an expired-but-present token
+  gives a different message, `"Invalid or expired session"`. The route itself was confirmed deployed
+  and correctly wired, same `{ auth: "admin" }` pattern as every other working admin call — this was
+  a missing client-side session, not a code defect in the score feature.)

@@ -1,15 +1,31 @@
 import { useEffect, useRef } from "react";
 import QRCode from "qrcode";
 
-export function ParticipantQR({ participant, size = 140 }) {
+export function QRCanvas({ participant, size = 140 }) {
   const canvasRef = useRef(null);
-  const isLeader = participant.participant_order === 1;
 
   useEffect(() => {
     if (canvasRef.current && participant.check_in_code) {
       QRCode.toCanvas(canvasRef.current, participant.check_in_code, { width: size, margin: 1 });
     }
   }, [participant.check_in_code, size]);
+
+  if (!participant.check_in_code) {
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className="flex items-center justify-center rounded bg-surface text-center text-xs text-foreground-muted"
+      >
+        QR available once payment is confirmed
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} />;
+}
+
+export function ParticipantQR({ participant, size = 140 }) {
+  const isLeader = participant.participant_order === 1;
 
   return (
     <div
@@ -23,16 +39,7 @@ export function ParticipantQR({ participant, size = 140 }) {
         </span>
       )}
 
-      {participant.check_in_code ? (
-        <canvas ref={canvasRef} />
-      ) : (
-        <div
-          style={{ width: size, height: size }}
-          className="flex items-center justify-center rounded bg-surface text-center text-xs text-foreground-muted"
-        >
-          QR available once payment is confirmed
-        </div>
-      )}
+      <QRCanvas participant={participant} size={size} />
 
       <div className="text-center">
         <div className="text-sm font-semibold">{participant.full_name}</div>

@@ -38,6 +38,16 @@ export default function AdminDashboard() {
     api.getEvents().then((data) => setEvents(data.events));
   }, []);
 
+  function handleAuthError(err) {
+    setError(err.message);
+    if (err.message.includes("401") || /not authenticated|invalid or expired/i.test(err.message)) {
+      clearAdminToken();
+      navigate("/login");
+      return true;
+    }
+    return false;
+  }
+
   async function load(overrides = {}) {
     setLoading(true);
     setError(null);
@@ -52,11 +62,7 @@ export default function AdminDashboard() {
       const data = await api.listRegistrations(params);
       setRows(data.registrations);
     } catch (err) {
-      setError(err.message);
-      if (err.message.includes("401") || /not authenticated|invalid or expired/i.test(err.message)) {
-        clearAdminToken();
-        navigate("/login");
-      }
+      handleAuthError(err);
     } finally {
       setLoading(false);
     }
@@ -91,7 +97,7 @@ export default function AdminDashboard() {
       await api.confirmPaymentOverride(id);
       await Promise.all([load(), loadStats()]);
     } catch (err) {
-      setError(err.message);
+      handleAuthError(err);
     } finally {
       setBusyId(null);
     }
@@ -104,7 +110,7 @@ export default function AdminDashboard() {
       await api.rejectPaymentOverride(id);
       await Promise.all([load(), loadStats()]);
     } catch (err) {
-      setError(err.message);
+      handleAuthError(err);
     } finally {
       setBusyId(null);
     }
@@ -116,7 +122,7 @@ export default function AdminDashboard() {
       await api.setRegistrationScore(id, score);
       await load();
     } catch (err) {
-      setError(err.message);
+      handleAuthError(err);
     } finally {
       setBusyId(null);
     }
