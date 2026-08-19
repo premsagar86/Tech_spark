@@ -6,6 +6,11 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  // Force IPv4 — on Railway (and most containerized PaaS hosts) outbound IPv6
+  // routing to Gmail's SMTP servers is often broken/unrouted, so the raw TCP
+  // connect just hangs until ETIMEDOUT instead of failing fast or falling
+  // back to IPv4 on its own.
+  family: 4,
 });
 
 // Custom web fonts (Bebas Neue) mostly don't render in email clients —

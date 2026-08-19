@@ -12,6 +12,11 @@ import { errorHandler } from "./middleware/errorHandler.js";
 const app = express();
 app.connection = null; // will be set in db.js
 
+// Railway (and most PaaS hosts) sit behind a reverse proxy that sets
+// X-Forwarded-For — without this, express-rate-limit can't safely identify
+// client IPs and throws on every request (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+app.set("trust proxy", 1);
+
 // FRONTEND_URL is a comma-separated list so local dev (which hops between
 // Vite ports: 3000, 5173, 5174, ...) doesn't need the backend restarted
 // every time the frontend picks a different port.
