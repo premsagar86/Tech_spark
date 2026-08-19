@@ -2,16 +2,29 @@ import mjml2html from "mjml";
 import nodemailer from "nodemailer";
 import QRCode from "qrcode";
 
+// Local .env parsing (dotenv) strips wrapping quotes from values like
+// EMAIL_FROM="Name <addr>" automatically, but pasting the same line into a
+// host's dashboard (e.g. Railway) often keeps the quotes as literal
+// characters, which corrupts the From header and gets sends silently
+// rejected — strip them defensively so it works either way.
+const EMAIL_FROM = (process.env.EMAIL_FROM ?? "").replace(/^"|"$/g, "");
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
   auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   // Force IPv4 — on Railway (and most containerized PaaS hosts) outbound IPv6
-  // routing to Gmail's SMTP servers is often broken/unrouted, so the raw TCP
-  // connect just hangs until ETIMEDOUT instead of failing fast or falling
-  // back to IPv4 on its own.
+  // routing is often broken/unrouted, so the raw TCP connect just hangs
+  // until ETIMEDOUT instead of failing fast or falling back to IPv4 on its own.
   family: 4,
 });
+
+// Temporary: confirms exactly what this deployment actually loaded (env var
+// mismatches between .env and the hosting dashboard have bitten this project
+// twice already) — password/key intentionally not logged.
+console.log(
+  `Mail transport configured: host=${process.env.SMTP_HOST} port=${process.env.SMTP_PORT} user=${process.env.SMTP_USER} from=${EMAIL_FROM}`
+);
 
 // Custom web fonts (Bebas Neue) mostly don't render in email clients —
 // Gmail/Outlook strip most @font-face — so these templates use bold system
@@ -86,7 +99,7 @@ export async function sendConfirmationEmail(participant, registration, teamRoste
   const { html } = mjml2html(confirmationTemplate({ participant, registration, teamRoster }));
   const qrBuffer = await QRCode.toBuffer(participant.check_in_code, { width: 240, margin: 1 });
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: EMAIL_FROM,
     to: participant.email,
     subject: "🎉 Your TechSpark 2026 registration is confirmed!",
     html,
@@ -98,7 +111,7 @@ export async function sendMagicLinkEmail(participant, token) {
   const linkUrl = `${process.env.FRONTEND_URL}/login/magic?token=${token}`;
   const { html } = mjml2html(magicLinkTemplate({ participant, linkUrl }));
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
+    from: EMAIL_FROM,
     to: participant.email,
     subject: "Sign in to TechSpark 2026",
     html,
