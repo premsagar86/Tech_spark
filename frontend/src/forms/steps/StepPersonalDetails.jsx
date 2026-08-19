@@ -37,7 +37,18 @@ export default function StepPersonalDetails({ defaultValues, onNext, onBack }) {
       ].map(([name, label]) => (
         <div key={name}>
           <label className="mb-1 block text-sm text-foreground-muted">{label}</label>
-          <input className={fieldClass} {...register(name)} />
+          {name === "year" ? (
+            <select className={fieldClass} defaultValue="" {...register(name)}>
+              <option value="" disabled>
+                Select year
+              </option>
+              <option value="1st year">1st year</option>
+              <option value="2nd year">2nd year</option>
+              <option value="3rd year">3rd year</option>
+            </select>
+          ) : (
+            <input className={fieldClass} {...register(name)} />
+          )}
           {errors[name] && <p className="mt-1 text-xs text-red-400">{errors[name].message}</p>}
         </div>
       ))}

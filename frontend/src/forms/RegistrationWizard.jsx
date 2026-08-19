@@ -28,11 +28,25 @@ export default function RegistrationWizard() {
   }, []);
 
   const selectedEvent = events.find((e) => e.slug === selectedSlug);
+  const isSoloEvent = selectedEvent ? selectedEvent.max_team_size <= 1 : false;
+
+  // Solo events have nothing to fill on the "team" step (it's just a no-op
+  // "no team members" screen) — skip it and go straight to review.
+  useEffect(() => {
+    if (isSoloEvent) setTeamInfo({ teamName: "", members: [] });
+  }, [isSoloEvent]);
+
   // The Events page always links here with ?event=slug already chosen — skip
   // the "pick an event" step in that case, only show it as a fallback for a
   // bare /register visit (e.g. a stale link) where nothing was pre-selected.
   const skipEventStep = Boolean(eventParam);
-  const STEPS = skipEventStep ? ["personal", "team", "review"] : ["personal", "event", "team", "review"];
+  const STEPS = skipEventStep
+    ? isSoloEvent
+      ? ["personal", "review"]
+      : ["personal", "team", "review"]
+    : isSoloEvent
+      ? ["personal", "event", "review"]
+      : ["personal", "event", "team", "review"];
   const step = STEPS[stepIndex];
 
   function goTo(index) {

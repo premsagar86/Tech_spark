@@ -61,6 +61,17 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
   );
   const leader = participants[0];
 
+  // Not awaited on purpose — SMTP sends to an external relay are slow, and
+  // callers (the registration HTTP response, the payment webhook, etc.)
+  // shouldn't be held up waiting on them.
+  sendConfirmationEmails(participants, registration).catch((err) =>
+    console.error(`Confirmation email batch failed for registration ${registrationId}`, err)
+  );
+
+  return { registration, participants, participantToken: leader ? issueParticipantToken(leader) : null };
+}
+
+async function sendConfirmationEmails(participants, registration) {
   for (const p of participants) {
     if (!p.email || p.confirmation_email_sent_at) continue;
     try {
@@ -70,6 +81,4 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
       console.error(`Confirmation email failed for participant ${p.id}`, err);
     }
   }
-
-  return { registration, participants, participantToken: leader ? issueParticipantToken(leader) : null };
 }
