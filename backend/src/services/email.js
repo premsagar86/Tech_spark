@@ -64,7 +64,7 @@ function confirmationTemplate({ participant, registration, teamRoster }) {
     <mj-text color="#f5f3ee">
       You can also log in with your email + mobile number anytime to view your personal check-in QR.
     </mj-text>
-    <mj-button background-color="#ff6b00" href="${process.env.FRONTEND_URL}/login">
+    <mj-button background-color="#ff6b00" href="${process.env.FRONTEND_URL}">
       View My QR Code
     </mj-button>
     <mj-button background-color="#00d4ff" href="${process.env.WHATSAPP_COMMUNITY_LINK}">
