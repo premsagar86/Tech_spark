@@ -1,5 +1,4 @@
 import mjml2html from "mjml";
-import nodemailer from "nodemailer";
 import QRCode from "qrcode";
 
 // Local .env parsing (dotenv) strips wrapping quotes from values like
@@ -9,22 +8,43 @@ import QRCode from "qrcode";
 // rejected — strip them defensively so it works either way.
 const EMAIL_FROM = (process.env.EMAIL_FROM ?? "").replace(/^"|"$/g, "");
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  // Force IPv4 — on Railway (and most containerized PaaS hosts) outbound IPv6
-  // routing is often broken/unrouted, so the raw TCP connect just hangs
-  // until ETIMEDOUT instead of failing fast or falling back to IPv4 on its own.
-  family: 4,
-});
-
-// Temporary: confirms exactly what this deployment actually loaded (env var
-// mismatches between .env and the hosting dashboard have bitten this project
-// twice already) — password/key intentionally not logged.
+// Sent over HTTPS via Brevo's transactional email API rather than raw SMTP —
+// Railway (and most PaaS hosts) blocks/times out outbound SMTP ports (25/
+// 465/587) to curb spam abuse, which made every send here fail with
+// ETIMEDOUT on "CONN" no matter what IPv4/IPv6 settings were tried. HTTPS on
+// 443 isn't blocked.
 console.log(
-  `Mail transport configured: host=${process.env.SMTP_HOST} port=${process.env.SMTP_PORT} user=${process.env.SMTP_USER} from=${EMAIL_FROM}`
+  `Mail transport configured: provider=brevo-api from=${EMAIL_FROM} apiKeySet=${Boolean(process.env.BREVO_API_KEY)}`
 );
+
+function fromAddress() {
+  const match = EMAIL_FROM.match(/^(.*)<(.+)>$/);
+  if (match) return { name: match[1].trim() || undefined, email: match[2].trim() };
+  return { email: EMAIL_FROM };
+}
+
+async function sendViaBrevo({ to, toName, subject, html, attachment }) {
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "api-key": process.env.BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      sender: fromAddress(),
+      to: [{ email: to, name: toName }],
+      subject,
+      htmlContent: html,
+      ...(attachment ? { attachment: [attachment] } : {}),
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Brevo API send failed (${res.status}): ${body}`);
+  }
+}
 
 // Custom web fonts (Bebas Neue) mostly don't render in email clients —
 // Gmail/Outlook strip most @font-face — so these templates use bold system
@@ -43,7 +63,7 @@ function wrapper(bodyMjml) {
   `;
 }
 
-function confirmationTemplate({ participant, registration, teamRoster }) {
+function confirmationTemplate({ participant, registration, teamRoster, qrBase64 }) {
   return wrapper(`
     <mj-text align="center" color="#ff6b00" font-size="24px" font-weight="700">
       🎉 Congratulations, ${participant.full_name}!
@@ -57,7 +77,7 @@ function confirmationTemplate({ participant, registration, teamRoster }) {
       <strong>Registration Code:</strong> ${registration.registration_code}<br/>
       <strong>Team Members:</strong> ${teamRoster.map((p) => p.full_name).join(", ")}
     </mj-text>
-    <mj-image src="cid:checkinQr" width="200px" alt="Your check-in QR code" />
+    <mj-image src="data:image/png;base64,${qrBase64}" width="200px" alt="Your check-in QR code" />
     <mj-text align="center" color="#f5f3ee">
       Use this QR code to verify your profile at check-in — just show this email at the event, no login needed.
     </mj-text>
@@ -93,23 +113,29 @@ function magicLinkTemplate({ participant, linkUrl }) {
 }
 
 export async function sendConfirmationEmail(participant, registration, teamRoster) {
-  const { html } = mjml2html(confirmationTemplate({ participant, registration, teamRoster }));
   const qrBuffer = await QRCode.toBuffer(participant.check_in_code, { width: 240, margin: 1 });
-  await transporter.sendMail({
-    from: EMAIL_FROM,
+  const qrBase64 = qrBuffer.toString("base64");
+  const { html } = mjml2html(confirmationTemplate({ participant, registration, teamRoster, qrBase64 }));
+  await sendViaBrevo({
     to: participant.email,
+    toName: participant.full_name,
     subject: "🎉 Your TechSpark 2026 registration is confirmed!",
     html,
-    attachments: [{ filename: "check-in-qr.png", content: qrBuffer, cid: "checkinQr" }],
+    // Brevo's API attachments are downloadable-only (no cid inline embedding
+    // like raw SMTP MIME) — the QR is already shown inline via the data: URI
+    // above; this is a fallback for clients that don't render data URIs.
+    attachment: { name: "check-in-qr.png", content: qrBase64 },
   });
 }
 
 export async function sendMagicLinkEmail(participant, token) {
-  const linkUrl = `${process.env.FRONTEND_URL}/login/magic?token=${token}`;
+  // FRONTEND_URL is a comma-separated list for CORS (app.js) — not a single
+  // URL, so it can't be used here. PUBLIC_APP_URL is the single production origin.
+  const linkUrl = `${process.env.PUBLIC_APP_URL}/login/magic?token=${token}`;
   const { html } = mjml2html(magicLinkTemplate({ participant, linkUrl }));
-  await transporter.sendMail({
-    from: EMAIL_FROM,
+  await sendViaBrevo({
     to: participant.email,
+    toName: participant.full_name,
     subject: "Sign in to TechSpark 2026",
     html,
   });
