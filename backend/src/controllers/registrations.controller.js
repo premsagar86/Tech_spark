@@ -2,8 +2,13 @@ import { pool } from "../db/pool.js";
 import { registrationCodeFromId } from "../utils/generateCode.js";
 import { confirmPayment } from "../services/confirmPayment.js";
 import { createOrder, verifySignature } from "../services/razorpay.js";
-import { getRegistrationByCode, listParticipantsForRegistration } from "../models/registrations.model.js";
+import {
+  getRegistrationByCode,
+  listParticipantsForRegistration,
+  getRegistrationsForParticipant,
+} from "../models/registrations.model.js";
 import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
+import { issueParticipantRefreshCookie } from "../middleware/participantAuth.js";
 
 const MUTUALLY_EXCLUSIVE_EVENTS = { hackathon: "ideathon", ideathon: "hackathon" };
 
@@ -149,6 +154,9 @@ export async function createRegistration(req, res, next) {
   if (paymentStatus === "not_required") {
     try {
       const result = await confirmPayment(registrationId);
+      if (result.participantToken) {
+        await issueParticipantRefreshCookie(res, result.participants[0].id);
+      }
       return res.status(201).json({
         registrationCode,
         paymentRequired: false,
@@ -179,6 +187,20 @@ export async function createRegistration(req, res, next) {
     // any future legitimate registration attempt with the same roll number.
     await pool.query("DELETE FROM registrations WHERE id = ?", [registrationId]);
     return next(httpError(502, "Could not initialize payment, please try again"));
+  }
+}
+
+// Status-by-contact lookup — same two-fact pairing as participant login
+// (email+mobile), so this can't be used to pull someone else's registrations
+// and QR codes from just a guessed/known email.
+export async function getRegistrationsByContact(req, res, next) {
+  try {
+    const { email, mobile } = req.query;
+    if (!email || !mobile) return res.status(400).json({ error: "Email and mobile are required" });
+    const registrations = await getRegistrationsForParticipant(String(email).trim(), String(mobile).trim());
+    res.json({ registrations });
+  } catch (err) {
+    next(err);
   }
 }
 
@@ -217,6 +239,9 @@ export async function verifyPayment(req, res, next) {
       [razorpay_payment_id, registration.id]
     );
     const result = await confirmPayment(registration.id);
+    if (result.participantToken) {
+      await issueParticipantRefreshCookie(res, result.participants[0].id);
+    }
     res.json({ ok: true, participantToken: result.participantToken });
   } catch (err) {
     next(err);

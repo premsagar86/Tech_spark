@@ -50,6 +50,18 @@ CREATE TABLE IF NOT EXISTS registrations (
   FOREIGN KEY (score_updated_by) REFERENCES admins(id)
 );
 
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  token_hash    CHAR(64)  NOT NULL UNIQUE,
+  subject_type  ENUM('admin','participant') NOT NULL,
+  subject_id    INT       NOT NULL,
+  expires_at    TIMESTAMP NOT NULL,
+  revoked_at    TIMESTAMP NULL,
+  replaced_by   INT       NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (replaced_by) REFERENCES refresh_tokens(id)
+);
+
 CREATE TABLE IF NOT EXISTS participants (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   registration_id     INT          NOT NULL,

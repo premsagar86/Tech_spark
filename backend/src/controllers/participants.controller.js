@@ -1,6 +1,12 @@
 import { pool } from "../db/pool.js";
-import { issueParticipantToken } from "../middleware/participantAuth.js";
+import {
+  issueParticipantToken,
+  issueParticipantSession,
+  participantRefreshCookieOptions,
+  PARTICIPANT_REFRESH_TTL_MS,
+} from "../middleware/participantAuth.js";
 import { issueRecoveryToken, verifyRecoveryToken } from "../services/passwordReset.js";
+import { rotateRefreshToken, revokeRefreshToken } from "../services/refreshTokens.js";
 import { sendMagicLinkEmail } from "../services/email.js";
 import {
   getParticipantByEmailAndMobile,
@@ -19,8 +25,45 @@ export async function loginParticipant(req, res, next) {
     const participant = await getParticipantByEmailAndMobile(email, mobile);
     if (!participant) return res.status(401).json({ error: "No matching registration found" });
 
-    const token = issueParticipantToken(participant);
+    const token = await issueParticipantSession(res, participant);
     res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Silently mints a new short-lived access token from the httpOnly refresh
+// cookie — called by the frontend's request() on a 401, never by the user
+// directly. A reused/expired/unknown refresh token clears the cookie and
+// 401s, forcing a real re-login (see rotateRefreshToken's reuse-detection).
+export async function refreshParticipant(req, res, next) {
+  try {
+    const raw = req.cookies?.participantRefreshToken;
+    if (!raw) return res.status(401).json({ error: "Not authenticated" });
+
+    const rotated = await rotateRefreshToken("participant", raw, PARTICIPANT_REFRESH_TTL_MS);
+    if (!rotated) {
+      res.clearCookie("participantRefreshToken", participantRefreshCookieOptions());
+      return res.status(401).json({ error: "Session expired, please log in again" });
+    }
+    res.cookie("participantRefreshToken", rotated.token, participantRefreshCookieOptions());
+
+    const participant = await getParticipantById(rotated.subjectId);
+    if (!participant) return res.status(401).json({ error: "Not authenticated" });
+
+    res.json({ token: issueParticipantToken(participant) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Participants previously had no server-side logout at all (the navbar just
+// cleared the local token) — now there's a refresh token to revoke too.
+export async function logoutParticipant(req, res, next) {
+  try {
+    await revokeRefreshToken("participant", req.cookies?.participantRefreshToken);
+    res.clearCookie("participantRefreshToken", participantRefreshCookieOptions());
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -90,7 +133,7 @@ export async function verifyMagicLink(req, res, next) {
       return res.status(400).json({ error: "Link has already been used" });
     }
 
-    res.json({ token: issueParticipantToken(participant) });
+    res.json({ token: await issueParticipantSession(res, participant) });
   } catch (err) {
     next(err);
   }

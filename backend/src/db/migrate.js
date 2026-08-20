@@ -24,6 +24,22 @@ export async function migrateSchema() {
       name: "participants.github_url/linkedin_url",
       sql: "ALTER TABLE participants ADD COLUMN github_url VARCHAR(255) NULL, ADD COLUMN linkedin_url VARCHAR(255) NULL",
     },
+    {
+      // CREATE TABLE IF NOT EXISTS is idempotent on its own — no ER_DUP_FIELDNAME
+      // to swallow, this just no-ops on every boot once the table exists.
+      name: "refresh_tokens table",
+      sql: `CREATE TABLE IF NOT EXISTS refresh_tokens (
+              id            INT AUTO_INCREMENT PRIMARY KEY,
+              token_hash    CHAR(64)  NOT NULL UNIQUE,
+              subject_type  ENUM('admin','participant') NOT NULL,
+              subject_id    INT       NOT NULL,
+              expires_at    TIMESTAMP NOT NULL,
+              revoked_at    TIMESTAMP NULL,
+              replaced_by   INT       NULL,
+              created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (replaced_by) REFERENCES refresh_tokens(id)
+            )`,
+    },
   ];
 
   for (const { name, sql } of migrations) {

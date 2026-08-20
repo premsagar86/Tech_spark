@@ -3,6 +3,8 @@ import { confirmPayment } from "../services/confirmPayment.js";
 import { searchRegistrations, getRegistrationById, getRegistrationStats, setScore } from "../models/registrations.model.js";
 import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
 import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
+import { adminRefreshCookieOptions } from "../middleware/adminAuth.js";
+import { revokeRefreshToken } from "../services/refreshTokens.js";
 
 function httpError(status, message) {
   const e = new Error(message);
@@ -10,8 +12,10 @@ function httpError(status, message) {
   return e;
 }
 
-export function logoutAdmin(req, res) {
+export async function logoutAdmin(req, res) {
+  await revokeRefreshToken("admin", req.cookies?.adminRefreshToken);
   res.clearCookie("adminToken");
+  res.clearCookie("adminRefreshToken", adminRefreshCookieOptions());
   res.json({ ok: true });
 }
 
@@ -21,9 +25,9 @@ export async function listRegistrations(req, res, next) {
     const rows = await searchRegistrations({ search, eventId, paymentStatus });
 
     if (format === "csv") {
-      const header = "registration_code,team_name,event_name,payment_status,team_size,registration_fee,created_at";
+      const header = "registration_code,team_name,leader_name,event_name,payment_status,team_size,registration_fee,created_at";
       const lines = rows.map((r) =>
-        [r.registration_code, r.team_name ?? "", r.event_name, r.payment_status, r.team_size, r.registration_fee, r.created_at]
+        [r.registration_code, r.team_name ?? "", r.leader_name ?? "", r.event_name, r.payment_status, r.team_size, r.registration_fee, r.created_at]
           .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(",")
       );

@@ -75,7 +75,8 @@ export async function searchRegistrations({ search, eventId, paymentStatus }) {
 
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const [rows] = await pool.query(
-    `SELECT r.*, e.name AS event_name, e.slug AS event_slug
+    `SELECT r.*, e.name AS event_name, e.slug AS event_slug,
+            (SELECT full_name FROM participants p WHERE p.registration_id = r.id AND p.participant_order = 1) AS leader_name
      FROM registrations r
      JOIN events e ON e.id = r.event_id
      ${where}
@@ -83,6 +84,26 @@ export async function searchRegistrations({ search, eventId, paymentStatus }) {
     params
   );
   return rows;
+}
+
+// Status-by-contact lookup (public /status page) — mirrors login's "any
+// participant row" matching: every registration this person's email+mobile
+// appears on, across all events, not just one team's roster.
+export async function getRegistrationsForParticipant(email, mobile) {
+  const [rows] = await pool.query(
+    `SELECT DISTINCT r.id FROM registrations r
+     JOIN participants p ON p.registration_id = r.id
+     WHERE p.email = ? AND p.mobile = ?`,
+    [email, mobile]
+  );
+  const results = [];
+  for (const { id } of rows) {
+    results.push({
+      registration: await getRegistrationById(id),
+      participants: await listParticipantsForRegistration(id),
+    });
+  }
+  return results;
 }
 
 // Admin dashboard stats (payment counts + per-event breakdown) — one grouped

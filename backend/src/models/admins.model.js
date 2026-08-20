@@ -7,3 +7,8 @@ export async function getAdminByEmailAndMobile(email, mobile) {
   );
   return admin;
 }
+
+export async function getAdminById(id) {
+  const [[admin]] = await pool.query("SELECT * FROM admins WHERE id = ?", [id]);
+  return admin;
+}
