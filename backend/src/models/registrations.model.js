@@ -76,7 +76,8 @@ export async function searchRegistrations({ search, eventId, paymentStatus }) {
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const [rows] = await pool.query(
     `SELECT r.*, e.name AS event_name, e.slug AS event_slug,
-            (SELECT full_name FROM participants p WHERE p.registration_id = r.id AND p.participant_order = 1) AS leader_name
+            (SELECT full_name FROM participants p WHERE p.registration_id = r.id AND p.participant_order = 1) AS leader_name,
+            (SELECT college FROM participants p WHERE p.registration_id = r.id AND p.participant_order = 1) AS leader_college
      FROM registrations r
      JOIN events e ON e.id = r.event_id
      ${where}

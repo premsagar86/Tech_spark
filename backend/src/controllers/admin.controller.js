@@ -25,9 +25,9 @@ export async function listRegistrations(req, res, next) {
     const rows = await searchRegistrations({ search, eventId, paymentStatus });
 
     if (format === "csv") {
-      const header = "registration_code,team_name,leader_name,event_name,payment_status,team_size,registration_fee,created_at";
+      const header = "registration_code,team_name,leader_name,leader_college,event_name,payment_status,team_size,registration_fee,created_at";
       const lines = rows.map((r) =>
-        [r.registration_code, r.team_name ?? "", r.leader_name ?? "", r.event_name, r.payment_status, r.team_size, r.registration_fee, r.created_at]
+        [r.registration_code, r.team_name ?? "", r.leader_name ?? "", r.leader_college ?? "", r.event_name, r.payment_status, r.team_size, r.registration_fee, r.created_at]
           .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(",")
       );

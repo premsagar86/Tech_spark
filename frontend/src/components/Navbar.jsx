@@ -40,10 +40,13 @@ export default function Navbar() {
 
   function handleLogout() {
     if (getAdminToken()) {
-      api.adminLogout().catch(() => {});
       clearAdminToken();
+      api.adminLogout().catch(() => {});
     }
-    if (getParticipantToken()) clearParticipantToken();
+    if (getParticipantToken()) {
+      clearParticipantToken();
+      api.participantLogout().catch(() => {});
+    }
     setOpen(false);
     navigate("/");
   }

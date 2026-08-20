@@ -16,12 +16,12 @@ import AdminRoute from "./admin/AdminRoute.jsx";
 
 function PublicLayout({ children }) {
   return (
-    <>
+    <div className="flex min-h-screen flex-col">
       <GlowBackground />
       <Navbar />
-      <main>{children}</main>
+      <main className="flex-1">{children}</main>
       <Footer />
-    </>
+    </div>
   );
 }
 

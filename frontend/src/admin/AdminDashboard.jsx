@@ -148,6 +148,12 @@ export default function AdminDashboard() {
     navigate("/login");
   }
 
+  // Split by team_size rather than event slug — matches how the rest of the
+  // backend derives behavior from event data instead of hardcoded names
+  // (e.g. fee, not event name, decides whether payment is required).
+  const teamRows = rows.filter((r) => r.team_size > 1);
+  const soloRows = rows.filter((r) => r.team_size <= 1);
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-10">
       <div className="flex items-center justify-between">
@@ -256,12 +262,14 @@ export default function AdminDashboard() {
       {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
       {loading && <p className="mt-4 text-foreground-muted">Loading…</p>}
 
-      <div className="mt-6 overflow-x-auto rounded-lg border border-border">
+      <h3 className="mt-6 text-base font-semibold">Team Registrations</h3>
+      <div className="mt-3 overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface text-foreground-muted">
             <tr>
               <th className="px-3 py-2">Code</th>
-              <th className="px-3 py-2">Team / Leader</th>
+              <th className="px-3 py-2">Team Name</th>
+              <th className="px-3 py-2">Leader</th>
               <th className="px-3 py-2">Event</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Size</th>
@@ -270,10 +278,11 @@ export default function AdminDashboard() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {teamRows.map((r) => (
               <tr key={r.id} className="border-t border-border">
                 <td className="px-3 py-2 font-mono text-xs">{r.registration_code}</td>
                 <td className="px-3 py-2">{r.team_name || "—"}</td>
+                <td className="px-3 py-2">{r.leader_name || "—"}</td>
                 <td className="px-3 py-2">{r.event_name}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${statusBadge[r.payment_status] ?? ""}`}>
@@ -285,35 +294,70 @@ export default function AdminDashboard() {
                   <ScoreCell registration={r} busy={busyId === r.id} onSave={(score) => handleSetScore(r.id, score)} />
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-2">
-                    {r.payment_status === "created" && (
-                      <>
-                        <button
-                          disabled={busyId === r.id}
-                          onClick={() => handleConfirm(r.id)}
-                          className="rounded-full bg-accent/15 px-3 py-1 text-xs text-accent hover:bg-accent/25"
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          disabled={busyId === r.id}
-                          onClick={() => handleReject(r.id)}
-                          className="rounded-full bg-red-500/15 px-3 py-1 text-xs text-red-400 hover:bg-red-500/25"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => setAddMemberFor(r)}
-                      className="rounded-full border border-border px-3 py-1 text-xs hover:border-primary"
-                    >
-                      + Member
-                    </button>
-                  </div>
+                  <RegistrationActions
+                    registration={r}
+                    busy={busyId === r.id}
+                    onConfirm={() => handleConfirm(r.id)}
+                    onReject={() => handleReject(r.id)}
+                    onAddMember={() => setAddMemberFor(r)}
+                  />
                 </td>
               </tr>
             ))}
+            {teamRows.length === 0 && (
+              <tr>
+                <td className="px-3 py-4 text-foreground-muted" colSpan={8}>No team registrations yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="mt-8 text-base font-semibold">Solo Registrations</h3>
+      <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-surface text-foreground-muted">
+            <tr>
+              <th className="px-3 py-2">Code</th>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">College</th>
+              <th className="px-3 py-2">Event</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Score</th>
+              <th className="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {soloRows.map((r) => (
+              <tr key={r.id} className="border-t border-border">
+                <td className="px-3 py-2 font-mono text-xs">{r.registration_code}</td>
+                <td className="px-3 py-2">{r.leader_name || "—"}</td>
+                <td className="px-3 py-2">{r.leader_college || "—"}</td>
+                <td className="px-3 py-2">{r.event_name}</td>
+                <td className="px-3 py-2">
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${statusBadge[r.payment_status] ?? ""}`}>
+                    {r.payment_status}
+                  </span>
+                </td>
+                <td className="px-3 py-2">
+                  <ScoreCell registration={r} busy={busyId === r.id} onSave={(score) => handleSetScore(r.id, score)} />
+                </td>
+                <td className="px-3 py-2">
+                  <RegistrationActions
+                    registration={r}
+                    busy={busyId === r.id}
+                    onConfirm={() => handleConfirm(r.id)}
+                    onReject={() => handleReject(r.id)}
+                    onAddMember={() => setAddMemberFor(r)}
+                  />
+                </td>
+              </tr>
+            ))}
+            {soloRows.length === 0 && (
+              <tr>
+                <td className="px-3 py-4 text-foreground-muted" colSpan={7}>No solo registrations yet.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -330,6 +374,37 @@ export default function AdminDashboard() {
         />
       )}
     </section>
+  );
+}
+
+function RegistrationActions({ registration, busy, onConfirm, onReject, onAddMember }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {registration.payment_status === "created" && (
+        <>
+          <button
+            disabled={busy}
+            onClick={onConfirm}
+            className="rounded-full bg-accent/15 px-3 py-1 text-xs text-accent hover:bg-accent/25"
+          >
+            Confirm
+          </button>
+          <button
+            disabled={busy}
+            onClick={onReject}
+            className="rounded-full bg-red-500/15 px-3 py-1 text-xs text-red-400 hover:bg-red-500/25"
+          >
+            Reject
+          </button>
+        </>
+      )}
+      <button
+        onClick={onAddMember}
+        className="rounded-full border border-border px-3 py-1 text-xs hover:border-primary"
+      >
+        + Member
+      </button>
+    </div>
   );
 }
 

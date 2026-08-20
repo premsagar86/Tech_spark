@@ -17,6 +17,16 @@ console.log(
   `Mail transport configured: provider=brevo-api from=${EMAIL_FROM} apiKeySet=${Boolean(process.env.BREVO_API_KEY)}`
 );
 
+// PUBLIC_API_URL is the backend's own public base URL (distinct from
+// PUBLIC_APP_URL, the frontend's) — used to build a real, hosted QR image URL
+// for the confirmation email instead of a data: URI, since Gmail/Outlook web
+// commonly strip inline data: URI images. If this is unset in production the
+// email still sends, just with a broken image — logged here so that's
+// diagnosable instead of a silent "why isn't the QR showing" report.
+if (!process.env.PUBLIC_API_URL) {
+  console.warn("PUBLIC_API_URL is not set — confirmation email QR images will be broken links.");
+}
+
 function fromAddress() {
   const match = EMAIL_FROM.match(/^(.*)<(.+)>$/);
   const result = match ? { name: match[1].trim() || undefined, email: match[2].trim() } : { email: EMAIL_FROM };
@@ -73,9 +83,10 @@ function wrapper(bodyMjml) {
 // (even ones that happen to have teams, e.g. Vision Vault, Code Quest) just
 // gets the registrant's own name — a deliberate, narrower spec than "any team
 // event," per how this was requested.
-function confirmationTemplate({ participant, registration, event, teamRoster, qrBase64 }) {
+function confirmationTemplate({ participant, registration, event, teamRoster }) {
   const isShowcaseEvent = event.slug === "hackathon" || event.slug === "ideathon";
   const college = participant.college || "";
+  const qrImageUrl = `${process.env.PUBLIC_API_URL ?? ""}/api/participants/qr/${participant.check_in_code}`;
 
   return wrapper(`
     <mj-text align="center" color="#ff6b00" font-size="24px" font-weight="700">
@@ -93,7 +104,7 @@ function confirmationTemplate({ participant, registration, event, teamRoster, qr
            <strong>Team Members:</strong> ${teamRoster.map((p) => p.full_name).join(", ")}<br/>`
         : ""}
     </mj-text>
-    <mj-image src="data:image/png;base64,${qrBase64}" width="200px" alt="Your check-in QR code" />
+    <mj-image src="${qrImageUrl}" width="200px" alt="Your check-in QR code" />
     <mj-text align="center" color="#f5f3ee">
       Use this QR code to verify your profile at check-in — just show this email at the event, no login needed.
     </mj-text>
@@ -131,15 +142,15 @@ function magicLinkTemplate({ participant, linkUrl }) {
 export async function sendConfirmationEmail(participant, registration, teamRoster, event) {
   const qrBuffer = await QRCode.toBuffer(participant.check_in_code, { width: 240, margin: 1 });
   const qrBase64 = qrBuffer.toString("base64");
-  const { html } = mjml2html(confirmationTemplate({ participant, registration, event, teamRoster, qrBase64 }));
+  const { html } = mjml2html(confirmationTemplate({ participant, registration, event, teamRoster }));
   await sendViaBrevo({
     to: participant.email,
     toName: participant.full_name,
     subject: `🎉 Your TechSpark 2026 — ${event.name} registration is confirmed!`,
     html,
     // Brevo's API attachments are downloadable-only (no cid inline embedding
-    // like raw SMTP MIME) — the QR is already shown inline via the data: URI
-    // above; this is a fallback for clients that don't render data URIs.
+    // like raw SMTP MIME), so this is a secondary copy — the QR is shown
+    // inline in the body via a hosted image URL (see confirmationTemplate).
     attachment: { name: "check-in-qr.png", content: qrBase64 },
   });
 }

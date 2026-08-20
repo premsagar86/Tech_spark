@@ -107,6 +107,25 @@ export async function createRegistration(req, res, next) {
       }
     }
 
+    // Scoped per event (not globally) and to still-active registrations only —
+    // a failed/abandoned registration keeps its row forever (PII purge doesn't
+    // delete the row, see expireStaleRegistrations.js) so a check spanning all
+    // statuses would let one abandoned attempt permanently squat on a name.
+    if (teamName) {
+      const [[existingTeam]] = await conn.query(
+        `SELECT id FROM registrations
+         WHERE event_id = ? AND team_name = ? AND payment_status IN ('not_required','created','paid')
+         FOR UPDATE`,
+        [event.id, teamName]
+      );
+      if (existingTeam) {
+        throw httpError(
+          409,
+          `Team name "${teamName}" is already in use for this event — please choose a unique team name.`
+        );
+      }
+    }
+
     if (event.max_registrations !== null) {
       const [[{ count }]] = await conn.query(
         `SELECT COUNT(*) AS count FROM registrations

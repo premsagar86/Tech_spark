@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import { pool } from "../db/pool.js";
 import {
   issueParticipantToken,
@@ -12,6 +13,7 @@ import {
   getParticipantByEmailAndMobile,
   getParticipantByEmail,
   getParticipantById,
+  getParticipantByCheckInCode,
   updateParticipantProfile,
 } from "../models/participants.model.js";
 import { listParticipantsForRegistration, getRegistrationById } from "../models/registrations.model.js";
@@ -64,6 +66,25 @@ export async function logoutParticipant(req, res, next) {
     await revokeRefreshToken("participant", req.cookies?.participantRefreshToken);
     res.clearCookie("participantRefreshToken", participantRefreshCookieOptions());
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Served as a real image URL (not embedded as a data: URI) specifically so it
+// renders reliably in email — most webmail clients (Gmail/Outlook web) strip
+// inline data: URI images outright, which is why the QR wasn't showing up in
+// the confirmation email. No auth: knowing the check-in code already lets you
+// derive this image yourself, so there's nothing extra exposed by serving it.
+export async function getCheckInQrImage(req, res, next) {
+  try {
+    const participant = await getParticipantByCheckInCode(req.params.code);
+    if (!participant) return res.status(404).end();
+
+    const buffer = await QRCode.toBuffer(participant.check_in_code, { width: 240, margin: 1 });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(buffer);
   } catch (err) {
     next(err);
   }

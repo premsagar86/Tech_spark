@@ -1,10 +1,41 @@
-import { getAdminToken, getParticipantToken } from "./session.js";
+import { getAdminToken, getParticipantToken, setAdminToken, setParticipantToken, clearAdminToken, clearParticipantToken } from "./session.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-async function request(path, options = {}, { auth } = {}) {
+// Refresh tokens live in httpOnly cookies (sent automatically via
+// credentials: "include") — this just exchanges one for a fresh access
+// token. A per-auth-type in-flight cache means a burst of 401s (e.g. several
+// admin dashboard calls firing at once) only triggers one refresh call, not
+// one per call.
+let adminRefreshPromise = null;
+let participantRefreshPromise = null;
+
+async function refreshAccessToken(auth) {
+  const path = auth === "admin" ? "/api/auth/refresh" : "/api/participants/refresh";
+  const res = await fetch(`${API_URL}${path}`, { method: "POST", credentials: "include" });
+  if (!res.ok) throw new Error("refresh failed");
+  const data = await res.json();
+  if (auth === "admin") setAdminToken(data.token);
+  else setParticipantToken(data.token);
+  return data.token;
+}
+
+function refreshOnce(auth) {
+  if (auth === "admin") {
+    if (!adminRefreshPromise) {
+      adminRefreshPromise = refreshAccessToken("admin").finally(() => { adminRefreshPromise = null; });
+    }
+    return adminRefreshPromise;
+  }
+  if (!participantRefreshPromise) {
+    participantRefreshPromise = refreshAccessToken("participant").finally(() => { participantRefreshPromise = null; });
+  }
+  return participantRefreshPromise;
+}
+
+async function request(path, options = {}, { auth } = {}, _retried = false) {
   const headers = { "Content-Type": "application/json", ...options.headers };
 
   if (auth === "admin") {
@@ -35,6 +66,21 @@ async function request(path, options = {}, { auth } = {}) {
     clearTimeout(timeout);
   }
 
+  // Silent refresh: an expired/invalid access token gets one automatic retry
+  // after minting a fresh one from the httpOnly refresh cookie — the caller
+  // only ever sees a 401 if the refresh itself fails (logged out elsewhere,
+  // refresh token revoked/expired/reused).
+  if (res.status === 401 && (auth === "admin" || auth === "participant") && !_retried) {
+    try {
+      await refreshOnce(auth);
+      return request(path, options, { auth }, true);
+    } catch {
+      if (auth === "admin") clearAdminToken();
+      else clearParticipantToken();
+      // fall through — respond using the original 401 below
+    }
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);
@@ -52,6 +98,8 @@ export const api = {
   // Registrations
   register: (payload) => request("/api/registrations", { method: "POST", body: JSON.stringify(payload) }),
   getStatus: (code) => request(`/api/registrations/${code}`),
+  getStatusByContact: ({ email, mobile }) =>
+    request(`/api/registrations/by-contact?${new URLSearchParams({ email, mobile })}`),
   verifyPayment: (code, payload) =>
     request(`/api/registrations/${code}/verify-payment`, { method: "POST", body: JSON.stringify(payload) }),
   retryPayment: (code) => request(`/api/registrations/${code}/retry-payment`, { method: "POST" }),
@@ -66,6 +114,7 @@ export const api = {
     request("/api/participants/me/profile", { method: "PATCH", body: JSON.stringify(payload) }, { auth: "participant" }),
   requestMagicLink: (payload) => request("/api/participants/request-link", { method: "POST", body: JSON.stringify(payload) }),
   verifyMagicLink: (token) => request(`/api/participants/verify-link?token=${encodeURIComponent(token)}`),
+  participantLogout: () => request("/api/participants/logout", { method: "POST" }, { auth: "participant" }),
 
   // Admin
   adminLogout: () => request("/api/admin/logout", { method: "POST" }, { auth: "admin" }),
