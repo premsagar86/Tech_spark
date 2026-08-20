@@ -69,19 +69,29 @@ function wrapper(bodyMjml) {
   `;
 }
 
-function confirmationTemplate({ participant, registration, teamRoster, qrBase64 }) {
+// Hackathon/Ideathon get the full team roster in the email; every other event
+// (even ones that happen to have teams, e.g. Vision Vault, Code Quest) just
+// gets the registrant's own name — a deliberate, narrower spec than "any team
+// event," per how this was requested.
+function confirmationTemplate({ participant, registration, event, teamRoster, qrBase64 }) {
+  const isShowcaseEvent = event.slug === "hackathon" || event.slug === "ideathon";
+  const college = participant.college || "";
+
   return wrapper(`
     <mj-text align="center" color="#ff6b00" font-size="24px" font-weight="700">
       🎉 Congratulations, ${participant.full_name}!
     </mj-text>
     <mj-text align="center" color="#f5f3ee" font-size="16px">
-      Your team's registration for <strong>TechSpark 2026</strong> is confirmed.
+      Your registration for <strong>${event.name}</strong> at TechSpark 2026 is confirmed.
     </mj-text>
     <mj-divider border-color="#ffffff22" />
     <mj-text color="#f5f3ee">
-      <strong>Team:</strong> ${registration.team_name ?? participant.full_name}<br/>
       <strong>Registration Code:</strong> ${registration.registration_code}<br/>
-      <strong>Team Members:</strong> ${teamRoster.map((p) => p.full_name).join(", ")}
+      <strong>College:</strong> ${college}<br/>
+      ${isShowcaseEvent
+        ? `<strong>Team Name:</strong> ${registration.team_name ?? ""}<br/>
+           <strong>Team Members:</strong> ${teamRoster.map((p) => p.full_name).join(", ")}<br/>`
+        : ""}
     </mj-text>
     <mj-image src="data:image/png;base64,${qrBase64}" width="200px" alt="Your check-in QR code" />
     <mj-text align="center" color="#f5f3ee">
@@ -118,14 +128,14 @@ function magicLinkTemplate({ participant, linkUrl }) {
   `);
 }
 
-export async function sendConfirmationEmail(participant, registration, teamRoster) {
+export async function sendConfirmationEmail(participant, registration, teamRoster, event) {
   const qrBuffer = await QRCode.toBuffer(participant.check_in_code, { width: 240, margin: 1 });
   const qrBase64 = qrBuffer.toString("base64");
-  const { html } = mjml2html(confirmationTemplate({ participant, registration, teamRoster, qrBase64 }));
+  const { html } = mjml2html(confirmationTemplate({ participant, registration, event, teamRoster, qrBase64 }));
   await sendViaBrevo({
     to: participant.email,
     toName: participant.full_name,
-    subject: "🎉 Your TechSpark 2026 registration is confirmed!",
+    subject: `🎉 Your TechSpark 2026 — ${event.name} registration is confirmed!`,
     html,
     // Brevo's API attachments are downloadable-only (no cid inline embedding
     // like raw SMTP MIME) — the QR is already shown inline via the data: URI

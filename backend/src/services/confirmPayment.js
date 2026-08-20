@@ -2,6 +2,7 @@ import { pool } from "../db/pool.js";
 import { checkInCodeFor } from "../utils/generateCode.js";
 import { sendConfirmationEmail } from "./email.js";
 import { issueParticipantToken } from "../middleware/participantAuth.js";
+import { getRegistrationById } from "../models/registrations.model.js";
 
 // The one shared, idempotent core that every payment-confirmation trigger
 // (Razorpay signature verification, the Razorpay webhook, free-event submit,
@@ -53,29 +54,31 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
   }
 
   // Side effect, deliberately outside the transaction — an email failure
-  // must never undo the payment confirmation.
-  const [[registration]] = await pool.query("SELECT * FROM registrations WHERE id = ?", [registrationId]);
+  // must never undo the payment confirmation. getRegistrationById joins
+  // events, so the email template has the event name/slug without another query.
+  const registration = await getRegistrationById(registrationId);
   const [participants] = await pool.query(
     "SELECT * FROM participants WHERE registration_id = ? ORDER BY participant_order",
     [registrationId]
   );
   const leader = participants[0];
+  const event = { name: registration.event_name, slug: registration.event_slug };
 
   // Not awaited on purpose — SMTP sends to an external relay are slow, and
   // callers (the registration HTTP response, the payment webhook, etc.)
   // shouldn't be held up waiting on them.
-  sendConfirmationEmails(participants, registration).catch((err) =>
+  sendConfirmationEmails(participants, registration, event).catch((err) =>
     console.error(`Confirmation email batch failed for registration ${registrationId}`, err)
   );
 
   return { registration, participants, participantToken: leader ? issueParticipantToken(leader) : null };
 }
 
-async function sendConfirmationEmails(participants, registration) {
+async function sendConfirmationEmails(participants, registration, event) {
   for (const p of participants) {
     if (!p.email || p.confirmation_email_sent_at) continue;
     try {
-      await sendConfirmationEmail(p, registration, participants);
+      await sendConfirmationEmail(p, registration, participants, event);
       await pool.query("UPDATE participants SET confirmation_email_sent_at = NOW() WHERE id = ?", [p.id]);
     } catch (err) {
       console.error(`Confirmation email failed for participant ${p.id}`, err);

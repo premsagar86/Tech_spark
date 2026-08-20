@@ -1,8 +1,19 @@
 import { z } from "zod";
 
+const fullNameField = z
+  .string()
+  .trim()
+  .min(3, "Name must be at least 3 letters")
+  .regex(/^[A-Za-z]+(?:\s[A-Za-z]+)*$/, "Name must contain only alphabets");
+
+const rollNumberField = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9]+$/, "Roll number must be alphanumeric");
+
 export const personalDetailsSchema = z.object({
-  fullName: z.string().min(1, "Required"),
-  rollNumber: z.string().min(1, "Required"),
+  fullName: fullNameField,
+  rollNumber: rollNumberField,
   college: z.string().min(1, "Required"),
   course: z.string().min(1, "Required"),
   branch: z.string().min(1, "Required"),
@@ -13,8 +24,8 @@ export const personalDetailsSchema = z.object({
 
 // max/min team size come from the fetched event object at runtime — see StepTeamMembers.jsx
 export const teamMemberSchema = z.object({
-  fullName: z.string().min(1, "Required"),
-  rollNumber: z.string().min(1, "Required"),
+  fullName: fullNameField,
+  rollNumber: rollNumberField,
   mobile: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile number"),
   email: z.string().email("Enter a valid email"),
 });

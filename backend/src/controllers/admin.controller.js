@@ -2,6 +2,7 @@ import { pool } from "../db/pool.js";
 import { confirmPayment } from "../services/confirmPayment.js";
 import { searchRegistrations, getRegistrationById, getRegistrationStats, setScore } from "../models/registrations.model.js";
 import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
+import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
 
 function httpError(status, message) {
   const e = new Error(message);
@@ -133,6 +134,10 @@ export async function addTeamMember(req, res, next) {
   try {
     await conn.beginTransaction();
 
+    if (!isValidFullName(fullName) || !isValidRollNumber(rollNumber)) {
+      throw httpError(400, "Name must be at least 3 letters (alphabets only) and roll number must be alphanumeric");
+    }
+
     const [[registration]] = await conn.query("SELECT * FROM registrations WHERE id = ? FOR UPDATE", [id]);
     if (!registration) throw httpError(404, "Registration not found");
 
@@ -147,11 +152,12 @@ export async function addTeamMember(req, res, next) {
     }
 
     newParticipantOrder = existing.length + 1;
+    const college = existing[0]?.college ?? null;
     await conn.query(
       `INSERT INTO participants
-         (registration_id, event_id, participant_order, full_name, roll_number, mobile, email)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, registration.event_id, newParticipantOrder, fullName, rollNumber, mobile ?? null, email ?? null]
+         (registration_id, event_id, participant_order, full_name, roll_number, college, mobile, email)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, registration.event_id, newParticipantOrder, fullName, rollNumber, college, mobile ?? null, email ?? null]
     );
     await conn.query("UPDATE registrations SET team_size = ? WHERE id = ?", [newParticipantOrder, id]);
 

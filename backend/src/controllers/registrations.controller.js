@@ -3,6 +3,9 @@ import { registrationCodeFromId } from "../utils/generateCode.js";
 import { confirmPayment } from "../services/confirmPayment.js";
 import { createOrder, verifySignature } from "../services/razorpay.js";
 import { getRegistrationByCode, listParticipantsForRegistration } from "../models/registrations.model.js";
+import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
+
+const MUTUALLY_EXCLUSIVE_EVENTS = { hackathon: "ideathon", ideathon: "hackathon" };
 
 function httpError(status, message) {
   const e = new Error(message);
@@ -41,6 +44,61 @@ export async function createRegistration(req, res, next) {
     for (const [i, p] of (participants ?? []).entries()) {
       if (!p || typeof p !== "object" || !p.fullName?.trim() || !p.rollNumber?.trim()) {
         throw httpError(400, `Participant ${i + 1} is missing required details (full name, roll number)`);
+      }
+      if (!isValidFullName(p.fullName)) {
+        throw httpError(400, `Participant ${i + 1}'s name must be at least 3 letters, alphabets only`);
+      }
+      if (!isValidRollNumber(p.rollNumber)) {
+        throw httpError(400, `Participant ${i + 1}'s roll number must be alphanumeric`);
+      }
+    }
+
+    // Team-member step doesn't collect a per-person college — assume single-college
+    // teams and default every participant's college to the leader's (participants[0]
+    // is always the leader/solo entrant, per the wizard's submission order). Needed
+    // below to match a person across their other registrations.
+    const college = (participants[0]?.college ?? "").trim() || null;
+    for (const p of participants) {
+      if (!p.college) p.college = college;
+    }
+
+    // Cross-event eligibility: Hackathon/Ideathon exclusion + 3-event cap per person.
+    // Matched by (college, roll_number), case-insensitive, since there's no
+    // user-account system. If college is missing we can't verify identity, so the
+    // check is skipped rather than blocking a registration we can't evaluate.
+    if (college) {
+      const rollNumbers = participants.map((p) => p.rollNumber.trim().toUpperCase());
+      const placeholders = rollNumbers.map(() => "?").join(",");
+      const [existingRows] = await conn.query(
+        `SELECT p.roll_number, e.id AS event_id, e.slug AS event_slug, e.name AS event_name,
+                r.registration_code, r.team_name
+         FROM participants p
+         JOIN registrations r ON r.id = p.registration_id
+         JOIN events e ON e.id = r.event_id
+         WHERE UPPER(p.college) = UPPER(?) AND UPPER(p.roll_number) IN (${placeholders})
+           AND r.payment_status IN ('not_required','created','paid')`,
+        [college, ...rollNumbers]
+      );
+
+      const otherSlug = MUTUALLY_EXCLUSIVE_EVENTS[event.slug];
+
+      for (const p of participants) {
+        const rows = existingRows.filter((r) => r.roll_number.toUpperCase() === p.rollNumber.trim().toUpperCase());
+
+        if (otherSlug) {
+          const conflict = rows.find((r) => r.event_slug === otherSlug);
+          if (conflict) {
+            throw httpError(
+              409,
+              `${p.fullName} (Roll No: ${p.rollNumber}) is already registered for ${conflict.event_name} ` +
+                `(${conflict.team_name || conflict.registration_code}) and can't also register for ${event.name}.`
+            );
+          }
+        }
+
+        if (new Set(rows.map((r) => r.event_id)).size >= 3) {
+          throw httpError(409, `${p.fullName} (Roll No: ${p.rollNumber}) has already registered for the maximum of 3 events.`);
+        }
       }
     }
 
