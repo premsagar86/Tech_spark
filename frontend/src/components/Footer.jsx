@@ -12,7 +12,7 @@ export default function Footer() {
             Tech<span className="text-primary">Spark</span> 2026
           </div>
           <p className="mt-2 text-sm text-foreground-muted">
-            Ideathon, Hackathon, and four more events — one fest.
+            Powered by Minds and Driven by innovation
           </p>
         </div>
 
@@ -37,6 +37,8 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-border py-4 text-center text-xs text-foreground-muted">
+       <h1 className="text-lg font-bold  text-gradient ">Design & Build by <span className="text-gradient">Eedubilli Prem sagar</span>  & <span className="text-gradient">Eedubilli Prem Sai</span></h1>
+        <br />
         © 2026 TechSpark. Built for the fest.
       </div>
     </footer>

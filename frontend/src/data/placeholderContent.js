@@ -13,8 +13,8 @@ import vicePrincipalPhoto from "../images/adminstration/vice-principle.jpeg";
 // rather than inventing a name for a real, identifiable person.
 export const leadership = [
   { name: "Dr. N. Sesha Reddy Sir", role: "Chairman", org: "Aditya Degree Colleges", photo: chairmanPhoto },
-  { name: "Dr. BEVL Naidu Sir", role: "Director", org: "Aditya Degree Colleges", photo: directorPhoto },
   { name: "Dr. N. Suguna Madam", role: "Secretary (ADC)", org: "Aditya Degree Colleges", photo: thirdLeaderPhoto },
+  { name: "Dr. BEVL Naidu Sir", role: "Director", org: "Aditya Degree Colleges", photo: directorPhoto },
 ];
 
 export const administration = [
