@@ -27,7 +27,8 @@ export default function AdminDashboard() {
   const [rows, setRows] = useState([]);
   const [stats, setStats] = useState(null);
   const [search, setSearch] = useState("");
-  const [eventId, setEventId] = useState("");
+  const [teamEventFilter, setTeamEventFilter] = useState("");
+  const [soloEventFilter, setSoloEventFilter] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,16 +49,17 @@ export default function AdminDashboard() {
     return false;
   }
 
+  // Event filtering happens client-side (see teamRows/soloRows below) so the
+  // two tables can be filtered independently — only search/paymentStatus
+  // narrow what's fetched from the server.
   async function load(overrides = {}) {
     setLoading(true);
     setError(null);
     try {
       const effectiveSearch = overrides.search ?? search;
-      const effectiveEventId = overrides.eventId ?? eventId;
       const effectivePaymentStatus = overrides.paymentStatus ?? paymentStatus;
       const params = {};
       if (effectiveSearch) params.search = effectiveSearch;
-      if (effectiveEventId) params.eventId = effectiveEventId;
       if (effectivePaymentStatus) params.paymentStatus = effectivePaymentStatus;
       const data = await api.listRegistrations(params);
       setRows(data.registrations);
@@ -85,10 +87,17 @@ export default function AdminDashboard() {
 
   function filterByEvent(id) {
     const idStr = String(id);
-    setEventId(idStr);
+    const ev = events.find((e) => String(e.id) === idStr);
+    if (ev?.max_team_size > 1) {
+      setTeamEventFilter(idStr);
+      setSoloEventFilter("");
+    } else {
+      setSoloEventFilter(idStr);
+      setTeamEventFilter("");
+    }
     setPaymentStatus("");
     setSearch("");
-    load({ eventId: idStr, paymentStatus: "", search: "" });
+    load({ paymentStatus: "", search: "" });
   }
 
   async function handleConfirm(id) {
@@ -131,7 +140,6 @@ export default function AdminDashboard() {
   async function handleExportCsv() {
     const params = {};
     if (search) params.search = search;
-    if (eventId) params.eventId = eventId;
     if (paymentStatus) params.paymentStatus = paymentStatus;
     const blob = await api.exportRegistrationsCsv(params);
     const url = URL.createObjectURL(blob);
@@ -151,8 +159,10 @@ export default function AdminDashboard() {
   // Split by team_size rather than event slug — matches how the rest of the
   // backend derives behavior from event data instead of hardcoded names
   // (e.g. fee, not event name, decides whether payment is required).
-  const teamRows = rows.filter((r) => r.team_size > 1);
-  const soloRows = rows.filter((r) => r.team_size <= 1);
+  const teamEvents = events.filter((e) => e.max_team_size > 1);
+  const soloEvents = events.filter((e) => e.max_team_size <= 1);
+  const teamRows = rows.filter((r) => r.team_size > 1 && (!teamEventFilter || String(r.event_id) === teamEventFilter));
+  const soloRows = rows.filter((r) => r.team_size <= 1 && (!soloEventFilter || String(r.event_id) === soloEventFilter));
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10">
@@ -238,12 +248,6 @@ export default function AdminDashboard() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select className={fieldClass} value={eventId} onChange={(e) => setEventId(e.target.value)}>
-          <option value="">All events</option>
-          {events.map((ev) => (
-            <option key={ev.id} value={ev.id}>{ev.name}</option>
-          ))}
-        </select>
         <select className={fieldClass} value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
           <option value="">All statuses</option>
           <option value="not_required">Not required</option>
@@ -262,7 +266,15 @@ export default function AdminDashboard() {
       {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
       {loading && <p className="mt-4 text-foreground-muted">Loading…</p>}
 
-      <h3 className="mt-6 text-base font-semibold">Team Registrations</h3>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold">Team Registrations</h3>
+        <select className={fieldClass} value={teamEventFilter} onChange={(e) => setTeamEventFilter(e.target.value)}>
+          <option value="">All team events</option>
+          {teamEvents.map((ev) => (
+            <option key={ev.id} value={ev.id}>{ev.name}</option>
+          ))}
+        </select>
+      </div>
       <div className="mt-3 overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface text-foreground-muted">
@@ -313,7 +325,15 @@ export default function AdminDashboard() {
         </table>
       </div>
 
-      <h3 className="mt-8 text-base font-semibold">Solo Registrations</h3>
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold">Solo Registrations</h3>
+        <select className={fieldClass} value={soloEventFilter} onChange={(e) => setSoloEventFilter(e.target.value)}>
+          <option value="">All solo events</option>
+          {soloEvents.map((ev) => (
+            <option key={ev.id} value={ev.id}>{ev.name}</option>
+          ))}
+        </select>
+      </div>
       <div className="mt-3 overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface text-foreground-muted">
