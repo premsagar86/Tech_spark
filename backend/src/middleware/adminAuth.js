@@ -1,7 +1,9 @@
 import jwt from "jsonwebtoken";
 import { issueRefreshToken } from "../services/refreshTokens.js";
+import { requireEnvInt } from "../utils/env.js";
 
-const ADMIN_REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ADMIN_ACCESS_TTL_MS = requireEnvInt("ADMIN_ACCESS_TTL_MS");
+const ADMIN_REFRESH_TTL_MS = requireEnvInt("ADMIN_REFRESH_TTL_MS");
 
 export function requireAdmin(req, res, next) {
   const token = req.cookies?.adminToken || req.headers.authorization?.split(" ")[1];
@@ -20,7 +22,7 @@ export function issueAdminToken(admin) {
   return jwt.sign(
     { adminId: admin.id, username: admin.username, role: admin.role },
     process.env.JWT_ADMIN_SECRET,
-    { expiresIn: "15m" }
+    { expiresIn: Math.floor(ADMIN_ACCESS_TTL_MS / 1000) }
   );
 }
 
@@ -33,6 +35,12 @@ export function adminRefreshCookieOptions() {
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
+    // Chrome/Edge block third-party cookies by default — frontend (Amplify)
+    // and backend (Railway) are different domains, so every cookie here is
+    // third-party from the browser's view. Partitioned (CHIPS) opts back in,
+    // scoped per top-level site, without re-enabling cross-site tracking.
+    // Only valid alongside Secure, hence the same production-only gate.
+    partitioned: process.env.NODE_ENV === "production",
     maxAge: ADMIN_REFRESH_TTL_MS,
     path: "/",
   };
@@ -48,6 +56,7 @@ export function adminSessionHintCookieOptions() {
     httpOnly: false,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
+    partitioned: process.env.NODE_ENV === "production",
     maxAge: ADMIN_REFRESH_TTL_MS,
     path: "/",
   };
@@ -65,7 +74,7 @@ export async function issueAdminSession(res, admin) {
   return accessToken;
 }
 
-export { ADMIN_REFRESH_TTL_MS };
+export { ADMIN_ACCESS_TTL_MS, ADMIN_REFRESH_TTL_MS };
 
 // Chain after requireAdmin, which sets req.admin from the verified token.
 export function requireRole(...allowedRoles) {

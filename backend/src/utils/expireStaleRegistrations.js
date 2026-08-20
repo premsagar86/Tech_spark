@@ -1,8 +1,9 @@
 import { pool } from "../db/pool.js";
+import { requireEnvInt } from "./env.js";
 
-const STALE_MINUTES = 30;
-const PURGE_GRACE_HOURS = 24;
-const CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const STALE_MINUTES = requireEnvInt("STALE_REGISTRATION_MINUTES");
+const PURGE_GRACE_HOURS = requireEnvInt("PURGE_GRACE_HOURS");
+const CHECK_INTERVAL_MS = requireEnvInt("STALE_CHECK_INTERVAL_MS");
 
 // Abandoned checkouts left in 'created' permanently occupy a capacity slot
 // (Part 2/Part 9) — flip anything older than STALE_MINUTES to 'failed' so

@@ -2,7 +2,7 @@ import { clearAdminSession, clearParticipantSession } from "./session.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_REQUEST_TIMEOUT_MS);
 
 // Both the access and refresh tokens live in httpOnly cookies now (sent
 // automatically via credentials: "include") — there's no token for this file

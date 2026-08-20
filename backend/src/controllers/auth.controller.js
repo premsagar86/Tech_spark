@@ -5,6 +5,7 @@ import {
   adminRefreshCookieOptions,
   setAdminSessionHint,
   adminSessionHintCookieOptions,
+  ADMIN_ACCESS_TTL_MS,
   ADMIN_REFRESH_TTL_MS,
 } from "../middleware/adminAuth.js";
 import { rotateRefreshToken } from "../services/refreshTokens.js";
@@ -15,7 +16,10 @@ const ADMIN_TOKEN_COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   secure: process.env.NODE_ENV === "production",
-  maxAge: 15 * 60 * 1000,
+  // Chrome/Edge block third-party cookies by default — see the matching
+  // note in adminAuth.js's adminRefreshCookieOptions().
+  partitioned: process.env.NODE_ENV === "production",
+  maxAge: ADMIN_ACCESS_TTL_MS,
 };
 
 // Single entry point for both participants and staff — identify by

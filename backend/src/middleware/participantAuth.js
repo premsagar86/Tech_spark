@@ -1,8 +1,9 @@
 import jwt from "jsonwebtoken";
 import { issueRefreshToken } from "../services/refreshTokens.js";
+import { requireEnvInt } from "../utils/env.js";
 
-const PARTICIPANT_REFRESH_TTL_MS = 10 * 24 * 60 * 60 * 1000;
-const PARTICIPANT_ACCESS_TTL_MS = 30 * 60 * 1000;
+const PARTICIPANT_REFRESH_TTL_MS = requireEnvInt("PARTICIPANT_REFRESH_TTL_MS");
+const PARTICIPANT_ACCESS_TTL_MS = requireEnvInt("PARTICIPANT_ACCESS_TTL_MS");
 
 // Mirrors requireAdmin's dual cookie-or-header read exactly — cookie first
 // (the normal browser path), header as a fallback for API testing tools.
@@ -25,7 +26,7 @@ export function issueParticipantToken(participant) {
   return jwt.sign(
     { participantId: participant.id, registrationId: participant.registration_id },
     process.env.JWT_PARTICIPANT_SECRET,
-    { expiresIn: "30m" }
+    { expiresIn: Math.floor(PARTICIPANT_ACCESS_TTL_MS / 1000) }
   );
 }
 
@@ -36,6 +37,9 @@ export function participantRefreshCookieOptions() {
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
+    // Chrome/Edge block third-party cookies by default — see the matching
+    // note in adminAuth.js's adminRefreshCookieOptions().
+    partitioned: process.env.NODE_ENV === "production",
     maxAge: PARTICIPANT_REFRESH_TTL_MS,
     path: "/",
   };
@@ -54,6 +58,7 @@ export function participantTokenCookieOptions() {
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
+    partitioned: process.env.NODE_ENV === "production",
     maxAge: PARTICIPANT_ACCESS_TTL_MS,
     path: "/",
   };
@@ -71,6 +76,7 @@ export function participantSessionHintCookieOptions() {
     httpOnly: false,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
+    partitioned: process.env.NODE_ENV === "production",
     maxAge: PARTICIPANT_REFRESH_TTL_MS,
     path: "/",
   };
