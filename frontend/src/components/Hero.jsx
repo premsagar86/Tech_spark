@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import Countdown from "./Countdown.jsx";
 import { useScrollReveal } from "../animations/scrollReveal.js";
-import { getParticipantToken, getAdminToken } from "../lib/session.js";
+import { isParticipantLoggedIn, isAdminLoggedIn } from "../lib/session.js";
 
 export default function Hero() {
   const ref = useRef(null);
@@ -18,7 +18,7 @@ export default function Hero() {
     return () => window.removeEventListener("ts2026-session-changed", handler);
   }, []);
 
-  const isLoggedIn = Boolean(getParticipantToken() || getAdminToken());
+  const isLoggedIn = isParticipantLoggedIn() || isAdminLoggedIn();
 
   return (
     <section className="mx-auto flex min-h-[80vh] max-w-6xl flex-col items-center justify-center gap-8 px-4 py-24 text-center">

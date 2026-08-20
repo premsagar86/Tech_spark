@@ -38,10 +38,30 @@ export function adminRefreshCookieOptions() {
   };
 }
 
+// Deliberately NOT httpOnly — a small, non-authoritative "who's logged in"
+// hint (role only, no signature) so the frontend can render Navbar/routing
+// state synchronously without ever touching the real (httpOnly) token. The
+// server never trusts this cookie for anything — requireAdmin only ever
+// verifies the signed JWT.
+export function adminSessionHintCookieOptions() {
+  return {
+    httpOnly: false,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: ADMIN_REFRESH_TTL_MS,
+    path: "/",
+  };
+}
+
+export function setAdminSessionHint(res, admin) {
+  res.cookie("adminSessionHint", JSON.stringify({ role: admin.role }), adminSessionHintCookieOptions());
+}
+
 export async function issueAdminSession(res, admin) {
   const accessToken = issueAdminToken(admin);
   const { token } = await issueRefreshToken("admin", admin.id, ADMIN_REFRESH_TTL_MS);
   res.cookie("adminRefreshToken", token, adminRefreshCookieOptions());
+  setAdminSessionHint(res, admin);
   return accessToken;
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { getParticipantToken, clearParticipantToken, getParticipantId } from "../lib/session.js";
+import { isParticipantLoggedIn, clearParticipantSession, getParticipantId } from "../lib/session.js";
 
 const fieldClass =
   "w-full rounded-lg border border-border bg-raised px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none";
@@ -12,7 +12,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!getParticipantToken()) {
+    if (!isParticipantLoggedIn()) {
       navigate("/login");
       return;
     }
@@ -20,7 +20,7 @@ export default function Profile() {
       .getMyRegistration()
       .then(setData)
       .catch(() => {
-        clearParticipantToken();
+        clearParticipantSession();
         navigate("/login");
       })
       .finally(() => setLoading(false));

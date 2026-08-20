@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { stepSlide } from "../../animations/motionVariants.js";
 import { api } from "../../lib/api.js";
 import { openRazorpayCheckout } from "../../lib/razorpayCheckout.js";
-import { setParticipantToken } from "../../lib/session.js";
+import { notifySessionChanged } from "../../lib/session.js";
 
 export default function StepReviewPay({ event, personalDetails, teamInfo, onBack, onComplete }) {
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +22,7 @@ export default function StepReviewPay({ event, personalDetails, teamInfo, onBack
       });
 
       if (!result.paymentRequired) {
-        if (result.participantToken) setParticipantToken(result.participantToken);
+        if (result.participantToken) notifySessionChanged();
         onComplete(result.registrationCode);
         return;
       }
@@ -39,7 +39,7 @@ export default function StepReviewPay({ event, personalDetails, teamInfo, onBack
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
-            if (verifyResult.participantToken) setParticipantToken(verifyResult.participantToken);
+            if (verifyResult.participantToken) notifySessionChanged();
           } catch (err) {
             setError(`Payment succeeded but confirmation failed: ${err.message}. Check /status with your code.`);
           } finally {

@@ -8,7 +8,11 @@ import {
   getRegistrationsForParticipant,
 } from "../models/registrations.model.js";
 import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
-import { issueParticipantRefreshCookie } from "../middleware/participantAuth.js";
+import {
+  issueParticipantRefreshCookie,
+  setParticipantAccessCookie,
+  setParticipantSessionHint,
+} from "../middleware/participantAuth.js";
 
 const MUTUALLY_EXCLUSIVE_EVENTS = { hackathon: "ideathon", ideathon: "hackathon" };
 
@@ -174,7 +178,9 @@ export async function createRegistration(req, res, next) {
     try {
       const result = await confirmPayment(registrationId);
       if (result.participantToken) {
+        setParticipantAccessCookie(res, result.participantToken);
         await issueParticipantRefreshCookie(res, result.participants[0].id);
+        setParticipantSessionHint(res, result.participants[0]);
       }
       return res.status(201).json({
         registrationCode,
@@ -259,7 +265,9 @@ export async function verifyPayment(req, res, next) {
     );
     const result = await confirmPayment(registration.id);
     if (result.participantToken) {
+      setParticipantAccessCookie(res, result.participantToken);
       await issueParticipantRefreshCookie(res, result.participants[0].id);
+      setParticipantSessionHint(res, result.participants[0]);
     }
     res.json({ ok: true, participantToken: result.participantToken });
   } catch (err) {

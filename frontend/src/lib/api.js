@@ -1,14 +1,16 @@
-import { getAdminToken, getParticipantToken, setAdminToken, setParticipantToken, clearAdminToken, clearParticipantToken } from "./session.js";
+import { clearAdminSession, clearParticipantSession } from "./session.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-// Refresh tokens live in httpOnly cookies (sent automatically via
-// credentials: "include") — this just exchanges one for a fresh access
-// token. A per-auth-type in-flight cache means a burst of 401s (e.g. several
-// admin dashboard calls firing at once) only triggers one refresh call, not
-// one per call.
+// Both the access and refresh tokens live in httpOnly cookies now (sent
+// automatically via credentials: "include") — there's no token for this file
+// to read or attach as a header. A refresh call just needs to succeed; the
+// browser applies its Set-Cookie response itself, so the retry below picks
+// up the fresh access token automatically. A per-auth-type in-flight cache
+// means a burst of 401s (e.g. several admin dashboard calls firing at once)
+// only triggers one refresh call, not one per call.
 let adminRefreshPromise = null;
 let participantRefreshPromise = null;
 
@@ -16,10 +18,6 @@ async function refreshAccessToken(auth) {
   const path = auth === "admin" ? "/api/auth/refresh" : "/api/participants/refresh";
   const res = await fetch(`${API_URL}${path}`, { method: "POST", credentials: "include" });
   if (!res.ok) throw new Error("refresh failed");
-  const data = await res.json();
-  if (auth === "admin") setAdminToken(data.token);
-  else setParticipantToken(data.token);
-  return data.token;
 }
 
 function refreshOnce(auth) {
@@ -37,14 +35,6 @@ function refreshOnce(auth) {
 
 async function request(path, options = {}, { auth } = {}, _retried = false) {
   const headers = { "Content-Type": "application/json", ...options.headers };
-
-  if (auth === "admin") {
-    const token = getAdminToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  } else if (auth === "participant") {
-    const token = getParticipantToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -75,8 +65,8 @@ async function request(path, options = {}, { auth } = {}, _retried = false) {
       await refreshOnce(auth);
       return request(path, options, { auth }, true);
     } catch {
-      if (auth === "admin") clearAdminToken();
-      else clearParticipantToken();
+      if (auth === "admin") clearAdminSession();
+      else clearParticipantSession();
       // fall through — respond using the original 401 below
     }
   }

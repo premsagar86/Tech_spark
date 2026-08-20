@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from "motion/react";
 import logo from "../images/logo/leadership/logo.png";
 import { api } from "../lib/api.js";
 import {
-  getParticipantToken,
-  getAdminToken,
-  clearParticipantToken,
-  clearAdminToken,
+  isParticipantLoggedIn,
+  isAdminLoggedIn,
+  clearParticipantSession,
+  clearAdminSession,
 } from "../lib/session.js";
 
 const baseLinks = [
@@ -36,15 +36,15 @@ export default function Navbar() {
     return () => window.removeEventListener("ts2026-session-changed", handler);
   }, []);
 
-  const isLoggedIn = Boolean(getParticipantToken() || getAdminToken());
+  const isLoggedIn = isParticipantLoggedIn() || isAdminLoggedIn();
 
   function handleLogout() {
-    if (getAdminToken()) {
-      clearAdminToken();
+    if (isAdminLoggedIn()) {
+      clearAdminSession();
       api.adminLogout().catch(() => {});
     }
-    if (getParticipantToken()) {
-      clearParticipantToken();
+    if (isParticipantLoggedIn()) {
+      clearParticipantSession();
       api.participantLogout().catch(() => {});
     }
     setOpen(false);

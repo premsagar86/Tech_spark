@@ -1,8 +1,8 @@
 import { Navigate } from "react-router-dom";
-import { getAdminToken, getAdminRole } from "../lib/session.js";
+import { isAdminLoggedIn, getAdminRole } from "../lib/session.js";
 
 export default function AdminRoute({ children, roles }) {
-  if (!getAdminToken()) {
+  if (!isAdminLoggedIn()) {
     return <Navigate to="/login" replace />;
   }
   if (roles && !roles.includes(getAdminRole())) {

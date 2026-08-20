@@ -3,7 +3,7 @@ import { confirmPayment } from "../services/confirmPayment.js";
 import { searchRegistrations, getRegistrationById, getRegistrationStats, setScore } from "../models/registrations.model.js";
 import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
 import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
-import { adminRefreshCookieOptions } from "../middleware/adminAuth.js";
+import { adminRefreshCookieOptions, adminSessionHintCookieOptions } from "../middleware/adminAuth.js";
 import { revokeRefreshToken } from "../services/refreshTokens.js";
 
 function httpError(status, message) {
@@ -16,6 +16,7 @@ export async function logoutAdmin(req, res) {
   await revokeRefreshToken("admin", req.cookies?.adminRefreshToken);
   res.clearCookie("adminToken");
   res.clearCookie("adminRefreshToken", adminRefreshCookieOptions());
+  res.clearCookie("adminSessionHint", adminSessionHintCookieOptions());
   res.json({ ok: true });
 }
 

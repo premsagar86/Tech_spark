@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { clearAdminToken } from "../lib/session.js";
+import { clearAdminSession } from "../lib/session.js";
 
 const fieldClass =
   "rounded-lg border border-border bg-raised px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none";
@@ -42,7 +42,7 @@ export default function AdminDashboard() {
   function handleAuthError(err) {
     setError(err.message);
     if (err.message.includes("401") || /not authenticated|invalid or expired/i.test(err.message)) {
-      clearAdminToken();
+      clearAdminSession();
       navigate("/login");
       return true;
     }
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
   }
 
   function handleLogout() {
-    clearAdminToken();
+    clearAdminSession();
     api.adminLogout().catch(() => {});
     navigate("/login");
   }

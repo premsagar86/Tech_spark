@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { setParticipantToken } from "../lib/session.js";
+import { notifySessionChanged } from "../lib/session.js";
 
 export default function MagicLink() {
   const [searchParams] = useSearchParams();
@@ -16,8 +16,8 @@ export default function MagicLink() {
     }
     api
       .verifyMagicLink(token)
-      .then((result) => {
-        setParticipantToken(result.token);
+      .then(() => {
+        notifySessionChanged();
         setStatus("success");
         setTimeout(() => navigate("/"), 1000);
       })

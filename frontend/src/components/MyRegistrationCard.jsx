@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { getParticipantToken, clearParticipantToken, getParticipantId } from "../lib/session.js";
+import { isParticipantLoggedIn, clearParticipantSession, getParticipantId } from "../lib/session.js";
 import { QRCanvas } from "./TeamCard.jsx";
 import EventCard from "./EventCard.jsx";
 import EventModal from "./EventModal.jsx";
@@ -22,14 +22,14 @@ export default function MyRegistrationCard() {
   const [activeEvent, setActiveEvent] = useState(null);
 
   useEffect(() => {
-    if (!getParticipantToken()) {
+    if (!isParticipantLoggedIn()) {
       setLoading(false);
       return;
     }
     api
       .getMyRegistration()
       .then(setData)
-      .catch(() => clearParticipantToken())
+      .catch(() => clearParticipantSession())
       .finally(() => setLoading(false));
     api.getEvents().then((d) => setEvents(d.events));
   }, []);
@@ -39,7 +39,7 @@ export default function MyRegistrationCard() {
   // to drop stale data instead of leaving the last-fetched QR on screen.
   useEffect(() => {
     function handleSessionChange() {
-      if (!getParticipantToken()) setData(null);
+      if (!isParticipantLoggedIn()) setData(null);
     }
     window.addEventListener("ts2026-session-changed", handleSessionChange);
     return () => window.removeEventListener("ts2026-session-changed", handleSessionChange);

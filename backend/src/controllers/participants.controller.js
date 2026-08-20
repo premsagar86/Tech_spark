@@ -4,6 +4,10 @@ import {
   issueParticipantToken,
   issueParticipantSession,
   participantRefreshCookieOptions,
+  setParticipantAccessCookie,
+  participantTokenCookieOptions,
+  setParticipantSessionHint,
+  participantSessionHintCookieOptions,
   PARTICIPANT_REFRESH_TTL_MS,
 } from "../middleware/participantAuth.js";
 import { issueRecoveryToken, verifyRecoveryToken } from "../services/passwordReset.js";
@@ -46,6 +50,8 @@ export async function refreshParticipant(req, res, next) {
     const rotated = await rotateRefreshToken("participant", raw, PARTICIPANT_REFRESH_TTL_MS);
     if (!rotated) {
       res.clearCookie("participantRefreshToken", participantRefreshCookieOptions());
+      res.clearCookie("participantToken", participantTokenCookieOptions());
+      res.clearCookie("participantSessionHint", participantSessionHintCookieOptions());
       return res.status(401).json({ error: "Session expired, please log in again" });
     }
     res.cookie("participantRefreshToken", rotated.token, participantRefreshCookieOptions());
@@ -53,7 +59,10 @@ export async function refreshParticipant(req, res, next) {
     const participant = await getParticipantById(rotated.subjectId);
     if (!participant) return res.status(401).json({ error: "Not authenticated" });
 
-    res.json({ token: issueParticipantToken(participant) });
+    const accessToken = issueParticipantToken(participant);
+    setParticipantAccessCookie(res, accessToken);
+    setParticipantSessionHint(res, participant);
+    res.json({ token: accessToken });
   } catch (err) {
     next(err);
   }
@@ -65,6 +74,8 @@ export async function logoutParticipant(req, res, next) {
   try {
     await revokeRefreshToken("participant", req.cookies?.participantRefreshToken);
     res.clearCookie("participantRefreshToken", participantRefreshCookieOptions());
+    res.clearCookie("participantToken", participantTokenCookieOptions());
+    res.clearCookie("participantSessionHint", participantSessionHintCookieOptions());
     res.json({ ok: true });
   } catch (err) {
     next(err);

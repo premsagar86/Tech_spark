@@ -1,10 +1,13 @@
 import jwt from "jsonwebtoken";
 import { issueRefreshToken } from "../services/refreshTokens.js";
 
-const PARTICIPANT_REFRESH_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+const PARTICIPANT_REFRESH_TTL_MS = 10 * 24 * 60 * 60 * 1000;
+const PARTICIPANT_ACCESS_TTL_MS = 30 * 60 * 1000;
 
+// Mirrors requireAdmin's dual cookie-or-header read exactly — cookie first
+// (the normal browser path), header as a fallback for API testing tools.
 export function requireParticipant(req, res, next) {
-  const token = req.headers.authorization?.split(" ")[1];
+  const token = req.cookies?.participantToken || req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Not authenticated" });
   try {
     req.participant = jwt.verify(token, process.env.JWT_PARTICIPANT_SECRET);
@@ -46,10 +49,47 @@ export async function issueParticipantRefreshCookie(res, participantId) {
   res.cookie("participantRefreshToken", token, participantRefreshCookieOptions());
 }
 
+export function participantTokenCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: PARTICIPANT_ACCESS_TTL_MS,
+    path: "/",
+  };
+}
+
+export function setParticipantAccessCookie(res, token) {
+  res.cookie("participantToken", token, participantTokenCookieOptions());
+}
+
+// Deliberately NOT httpOnly — see the matching note in adminAuth.js's
+// setAdminSessionHint(). Never trusted server-side; requireParticipant only
+// ever verifies the signed JWT (cookie or header).
+export function participantSessionHintCookieOptions() {
+  return {
+    httpOnly: false,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: PARTICIPANT_REFRESH_TTL_MS,
+    path: "/",
+  };
+}
+
+export function setParticipantSessionHint(res, participant) {
+  res.cookie(
+    "participantSessionHint",
+    JSON.stringify({ participantId: participant.id }),
+    participantSessionHintCookieOptions()
+  );
+}
+
 export async function issueParticipantSession(res, participant) {
   const accessToken = issueParticipantToken(participant);
+  setParticipantAccessCookie(res, accessToken);
   await issueParticipantRefreshCookie(res, participant.id);
+  setParticipantSessionHint(res, participant);
   return accessToken;
 }
 
-export { PARTICIPANT_REFRESH_TTL_MS };
+export { PARTICIPANT_REFRESH_TTL_MS, PARTICIPANT_ACCESS_TTL_MS };

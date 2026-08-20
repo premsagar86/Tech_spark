@@ -1,67 +1,72 @@
-// Storage helpers for the two separate JWTs the app carries (Part 7/Part 9):
-// admin and participant tokens are deliberately never mixed.
+// Session state lives entirely in cookies, not localStorage. The real tokens
+// (access + refresh, for both admin and participant) are httpOnly cookies set
+// by the backend — invisible to this file on purpose, since that's what
+// actually blocks an XSS payload from stealing them; a plain readable cookie
+// would offer no more protection than localStorage did. For UI purposes only
+// (Navbar, routing, "am I logged in") the backend also sets one small,
+// non-httpOnly "session hint" cookie per audience — no signature, never
+// trusted server-side for authorization, same non-authoritative status these
+// values already had when they were decoded out of a JWT.
 
-const PARTICIPANT_KEY = "ts2026_participant_token";
-const ADMIN_KEY = "ts2026_admin_token";
+const ADMIN_HINT_COOKIE = "adminSessionHint";
+const PARTICIPANT_HINT_COOKIE = "participantSessionHint";
 
-// Same-tab components (e.g. Navbar) can't rely on the native "storage" event
-// — that only fires in *other* tabs — so broadcast our own event whenever a
-// token is set/cleared.
-function notifySessionChanged() {
-  window.dispatchEvent(new Event("ts2026-session-changed"));
+function readCookie(name) {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function getParticipantToken() {
-  return localStorage.getItem(PARTICIPANT_KEY);
+// Only clears what JS can actually clear — the httpOnly token/refresh
+// cookies are cleared server-side by the logout endpoints callers already
+// invoke alongside this.
+function clearCookie(name) {
+  document.cookie = `${name}=; Max-Age=0; path=/`;
 }
 
-export function setParticipantToken(token) {
-  localStorage.setItem(PARTICIPANT_KEY, token);
-  notifySessionChanged();
-}
-
-export function clearParticipantToken() {
-  localStorage.removeItem(PARTICIPANT_KEY);
-  notifySessionChanged();
-}
-
-export function getAdminToken() {
-  return localStorage.getItem(ADMIN_KEY);
-}
-
-export function setAdminToken(token) {
-  localStorage.setItem(ADMIN_KEY, token);
-  notifySessionChanged();
-}
-
-export function clearAdminToken() {
-  localStorage.removeItem(ADMIN_KEY);
-  notifySessionChanged();
-}
-
-// Reads the role claim out of the stored admin JWT for UI purposes only
-// (e.g. which nav items/redirects to show) — the signature isn't verified
-// here, the server is the real authority via requireRole.
-export function getAdminRole() {
-  const token = getAdminToken();
-  if (!token) return null;
+function readHint(cookieName) {
+  const raw = readCookie(cookieName);
+  if (!raw) return null;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.role ?? null;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
+}
+
+// Same-tab components (e.g. Navbar) can't rely on the native "storage" event
+// — that never fires for cookies at all, and even for localStorage it only
+// fires in *other* tabs — so broadcast our own event whenever login state
+// changes.
+export function notifySessionChanged() {
+  window.dispatchEvent(new Event("ts2026-session-changed"));
+}
+
+export function isAdminLoggedIn() {
+  return Boolean(readCookie(ADMIN_HINT_COOKIE));
+}
+
+export function isParticipantLoggedIn() {
+  return Boolean(readCookie(PARTICIPANT_HINT_COOKIE));
+}
+
+export function clearAdminSession() {
+  clearCookie(ADMIN_HINT_COOKIE);
+  notifySessionChanged();
+}
+
+export function clearParticipantSession() {
+  clearCookie(PARTICIPANT_HINT_COOKIE);
+  notifySessionChanged();
+}
+
+// UI-only read (which nav items/redirects to show) — the server is the real
+// authority via requireRole, this cookie is never trusted for authorization.
+export function getAdminRole() {
+  return readHint(ADMIN_HINT_COOKIE)?.role ?? null;
 }
 
 // Same non-authoritative client-side read as getAdminRole() — just for
 // picking "me" out of a team roster, not for authorization.
 export function getParticipantId() {
-  const token = getParticipantToken();
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.participantId ?? null;
-  } catch {
-    return null;
-  }
+  return readHint(PARTICIPANT_HINT_COOKIE)?.participantId ?? null;
 }

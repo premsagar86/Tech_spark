@@ -3,6 +3,8 @@ import {
   issueAdminToken,
   issueAdminSession,
   adminRefreshCookieOptions,
+  setAdminSessionHint,
+  adminSessionHintCookieOptions,
   ADMIN_REFRESH_TTL_MS,
 } from "../middleware/adminAuth.js";
 import { rotateRefreshToken } from "../services/refreshTokens.js";
@@ -57,6 +59,7 @@ export async function refreshAdmin(req, res, next) {
     if (!rotated) {
       res.clearCookie("adminRefreshToken", adminRefreshCookieOptions());
       res.clearCookie("adminToken", ADMIN_TOKEN_COOKIE_OPTIONS);
+      res.clearCookie("adminSessionHint", adminSessionHintCookieOptions());
       return res.status(401).json({ error: "Session expired, please log in again" });
     }
     res.cookie("adminRefreshToken", rotated.token, adminRefreshCookieOptions());
@@ -66,6 +69,7 @@ export async function refreshAdmin(req, res, next) {
 
     const token = issueAdminToken(admin);
     res.cookie("adminToken", token, ADMIN_TOKEN_COOKIE_OPTIONS);
+    setAdminSessionHint(res, admin);
     res.json({ role: admin.role, token });
   } catch (err) {
     next(err);
