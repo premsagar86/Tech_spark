@@ -96,14 +96,25 @@ function confirmationTemplate({ participant, registration, event, teamRoster }) 
       Your registration for <strong>${event.name}</strong> at TechSpark 2026 is confirmed.
     </mj-text>
     <mj-divider border-color="#ffffff22" />
-    <mj-text color="#f5f3ee">
-      <strong>Registration Code:</strong> ${registration.registration_code}<br/>
-      <strong>College:</strong> ${college}<br/>
-      ${isShowcaseEvent
-        ? `<strong>Team Name:</strong> ${registration.team_name ?? ""}<br/>
-           <strong>Team Members:</strong> ${teamRoster.map((p) => p.full_name).join(", ")}<br/>`
-        : ""}
+    <mj-text color="#f5f3ee" padding="10px 25px 4px">
+      <strong>Registration Code:</strong> ${registration.registration_code}
     </mj-text>
+    <mj-text color="#f5f3ee" padding="4px 25px">
+      <strong>College:</strong> ${college}
+    </mj-text>
+    ${isShowcaseEvent
+      ? `<mj-text color="#f5f3ee" padding="4px 25px">
+           <strong>Team Name:</strong> ${registration.team_name ?? ""}
+         </mj-text>
+         <mj-text color="#f5f3ee" padding="12px 25px 2px">
+           <strong>Team Members:</strong>
+         </mj-text>
+         <mj-text color="#f5f3ee" padding="0 25px 10px">
+           <ol style="margin: 4px 0 0; padding: 0 0 0 22px;">
+             ${teamRoster.map((p) => `<li style="margin-bottom: 4px;">${p.full_name}</li>`).join("")}
+           </ol>
+         </mj-text>`
+      : ""}
     <mj-image src="${qrImageUrl}" width="200px" alt="Your check-in QR code" />
     <mj-text align="center" color="#f5f3ee">
       Use this QR code to verify your profile at check-in — just show this email at the event, no login needed.

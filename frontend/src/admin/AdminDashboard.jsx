@@ -125,6 +125,19 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleDelete(id) {
+    if (!confirm("Delete this registration permanently? This removes it and all its participants from the database — this cannot be undone.")) return;
+    setBusyId(id);
+    try {
+      await api.deleteRegistration(id);
+      await Promise.all([load(), loadStats()]);
+    } catch (err) {
+      handleAuthError(err);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleSetScore(id, score) {
     setBusyId(id);
     try {
@@ -312,6 +325,7 @@ export default function AdminDashboard() {
                     onConfirm={() => handleConfirm(r.id)}
                     onReject={() => handleReject(r.id)}
                     onAddMember={() => setAddMemberFor(r)}
+                    onDelete={() => handleDelete(r.id)}
                   />
                 </td>
               </tr>
@@ -369,6 +383,7 @@ export default function AdminDashboard() {
                     onConfirm={() => handleConfirm(r.id)}
                     onReject={() => handleReject(r.id)}
                     onAddMember={() => setAddMemberFor(r)}
+                    onDelete={() => handleDelete(r.id)}
                   />
                 </td>
               </tr>
@@ -397,7 +412,7 @@ export default function AdminDashboard() {
   );
 }
 
-function RegistrationActions({ registration, busy, onConfirm, onReject, onAddMember }) {
+function RegistrationActions({ registration, busy, onConfirm, onReject, onAddMember, onDelete }) {
   return (
     <div className="flex flex-wrap gap-2">
       {registration.payment_status === "created" && (
@@ -423,6 +438,13 @@ function RegistrationActions({ registration, busy, onConfirm, onReject, onAddMem
         className="rounded-full border border-border px-3 py-1 text-xs hover:border-primary"
       >
         + Member
+      </button>
+      <button
+        disabled={busy}
+        onClick={onDelete}
+        className="rounded-full bg-red-500/15 px-3 py-1 text-xs text-red-400 hover:bg-red-500/25"
+      >
+        Delete
       </button>
     </div>
   );

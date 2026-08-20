@@ -126,6 +126,21 @@ export async function rejectPaymentOverride(req, res, next) {
   }
 }
 
+// Hard delete — participants cascade automatically via the FK in schema.sql
+// (ON DELETE CASCADE). Available regardless of payment_status, unlike Reject,
+// since this is for removing a mistaken/duplicate/spam entry outright rather
+// than marking a specific payment outcome.
+export async function deleteRegistration(req, res, next) {
+  try {
+    const registration = await getRegistrationById(req.params.id);
+    if (!registration) return res.status(404).json({ error: "Registration not found" });
+    await pool.query("DELETE FROM registrations WHERE id = ?", [registration.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Add a team member to an existing registration (Part 4), capped at
 // event.max_team_size, rejecting duplicate roll numbers the same way
 // registration time does.

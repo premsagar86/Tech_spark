@@ -127,6 +127,8 @@ export const api = {
     request(`/api/admin/registrations/${id}/confirm-payment`, { method: "PATCH" }, { auth: "admin" }),
   rejectPaymentOverride: (id) =>
     request(`/api/admin/registrations/${id}/reject-payment`, { method: "PATCH" }, { auth: "admin" }),
+  deleteRegistration: (id) =>
+    request(`/api/admin/registrations/${id}`, { method: "DELETE" }, { auth: "admin" }),
   setRegistrationScore: (id, score) =>
     request(`/api/admin/registrations/${id}/score`, { method: "PATCH", body: JSON.stringify({ score }) }, { auth: "admin" }),
   addTeamMember: (id, payload) =>
