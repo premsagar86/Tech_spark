@@ -1697,3 +1697,80 @@ duplicating the ALTER statements.
   local `.env` edits not being mirrored into Railway's dashboard. No code change made blind; the
   existing boot-time `Mail transport configured: ...` log plus the per-send failure logs are the
   tool for confirming this from real evidence once the user pulls them from Railway.
+
+### Login authentication overhaul — cookie scoping, cross-origin session checks, and an async race
+
+Reported symptom: neither participant nor admin login actually worked in production — admin login
+bounced straight back to `/login`, and a logged-in participant's Navbar never reflected it. Also
+requested explicitly: access/refresh tokens must live **only** in httpOnly cookies, never in
+`localStorage`/`sessionStorage`. This took three passes, each uncovering a different, independent bug
+hiding behind the same "bounces back to login" symptom.
+
+**Pass 1 — cookie path bug + token-in-body cleanup.** The frontend was already fully cookie-only
+(confirmed by grep — zero `localStorage`/`sessionStorage` token usage anywhere in `frontend/src`), so
+nothing needed fixing there for that requirement. But `ADMIN_TOKEN_COOKIE_OPTIONS` in
+`auth.controller.js` was missing `path: "/"` — the one cookie-options object in the whole codebase
+that didn't set it, unlike `adminRefreshCookieOptions()`/`adminSessionHintCookieOptions()` and all
+three participant equivalents. Per RFC 6265's default-path algorithm, a `Set-Cookie` with no `Path`
+issued from `POST /api/auth/login` defaults to path `/api/auth` — invisible to `requireAdmin` on the
+actual admin routes under `/api/admin/*`, so every real admin API call 401'd right after a
+successful-looking login. Fixed by adding a shared `adminTokenCookieOptions()` in `adminAuth.js`
+(matching the existing pattern) and using it everywhere the `adminToken` cookie is set or cleared —
+including `admin.controller.js`'s `logoutAdmin`, which had the same bug from the other direction
+(`res.clearCookie("adminToken")` with no options couldn't target the cookie the browser actually
+held). Also stripped the vestigial `token` field out of every login/refresh/magic-link JSON response
+body (`auth.controller.js`, `participants.controller.js`, and the registration/payment auto-login
+paths in `registrations.controller.js`) — nothing in the frontend ever read it, so it was just an
+unnecessary XSS-exposed copy of the access token sitting in a JS-visible response.
+
+**Pass 2 — the real root cause: document.cookie is origin-scoped, and this deployment is cross-origin.**
+Pass 1 shipped, but the reported symptoms persisted. Live testing (DevTools → Network → Cookies on an
+actual login) showed every cookie being issued correctly — `Secure`, `SameSite=None`, a `Partitioned`
+key matching the Amplify origin — ruling out the `NODE_ENV`/CORS theories entirely. The `Domain` on
+every one of those cookies was the Railway backend's own hostname, not the Amplify frontend's — proof
+that the two are talking directly, cross-site (no same-origin proxy is actually active in this
+deployment, despite `frontend/.env`'s `VITE_API_URL` being deliberately empty and the git history
+showing a "restore empty VITE_API_URL for same-origin proxy fix" commit; whatever Amplify Console
+rewrite that comment assumes is either not configured or `VITE_API_URL` is overridden at the Amplify
+build-env level to the full Railway URL — unconfirmed, since that's Console configuration outside
+this repo). That mismatch is what actually mattered: `frontend/src/lib/session.js`'s
+`isAdminLoggedIn()`/`isParticipantLoggedIn()`/`getAdminRole()`/`getParticipantId()` all read
+`document.cookie` directly, and a browser **can never** expose a cookie belonging to a different
+origin to `document.cookie`, regardless of `SameSite`/`Secure`/`Partitioned` — that's a hard browser
+security boundary, not a config bug. So `AdminRoute.jsx` always saw "not logged in" and redirected
+before any API call even happened, and `Navbar.jsx` never showed the logged-in link set, no matter how
+correct the actual httpOnly token cookies were. Fixed by adding a status-probe endpoint,
+`GET /api/auth/session` (`auth.controller.js`'s `getSession` — reads `req.cookies` server-side, which
+works fine cross-site, verifies whichever of `adminToken`/`participantToken` is present, always
+returns 200), and rewriting `session.js` around a server-verified in-memory cache plus a `useSession()`
+hook (reusing the existing `ts2026-session-changed` event-bus pattern rather than introducing
+Context/Redux). Every consumer of the old synchronous checks was switched to the hook and taught to
+wait for a `loading` flag instead of assuming an instant answer: `Navbar.jsx`, `AdminRoute.jsx`,
+`Profile.jsx`, `MyRegistrationCard.jsx`, `Hero.jsx`, `Home.jsx`, `AdminScanner.jsx`, plus `Login.jsx`/
+`MagicLink.jsx`/`StepReviewPay.jsx` (which now call a new `refreshSession()` right after
+login/magic-link/auto-login instead of just firing `notifySessionChanged()` with no cache update
+behind it).
+
+**Pass 3 — an async race in pass 2's own fix.** After pass 2 shipped, the same symptoms resurfaced in
+a new shape: a participant whose Navbar already showed the correct logged-in links got bounced to
+`/login` on clicking the Profile icon; admin login still bounced back instead of reaching the
+dashboard. Root cause: `loadSession()` fires a `GET /api/auth/session` unconditionally at app boot
+(every page load, including `/login`, before anyone's authenticated), resolving to `{ role: null }`.
+Logging in then calls `refreshSession()`, firing a **second** request that correctly resolves to the
+real role — but nothing stopped the **first**, still-in-flight request (Railway's free-tier cold
+starts make this a real, not theoretical, delay) from resolving *after* the second one and blindly
+overwriting the cache back to logged-out. Since every `useSession()` subscriber re-renders on that
+overwrite too, a component that had just correctly shown the logged-in view flipped back and
+redirected. Fixed with a monotonically increasing request-sequence guard in `session.js`: each fetch
+captures the sequence number current at its own start and discards its result if a newer
+request has been kicked off since — the standard fix for an out-of-order async response, correct
+regardless of which request happens to resolve first (rather than relying on the pre-login fetch
+"usually" finishing before login completes).
+
+As of this note, passes 1 and 2 are committed and pushed; pass 3 is written and build-verified locally
+but not yet confirmed working end-to-end against production by the user. The cross-origin
+Amplify/Railway topology itself (rather than a same-origin proxy) remains the actual deployment shape
+this all had to be made correct under — an unresolved, Console-side open question is whether that's
+intentional or whether the originally-planned same-origin proxy should eventually be wired up instead
+(which would make pass 2/3's async-session-check machinery unnecessary, though harmless, going
+forward).
