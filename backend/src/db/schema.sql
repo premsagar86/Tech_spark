@@ -86,5 +86,7 @@ CREATE TABLE IF NOT EXISTS participants (
   FOREIGN KEY (event_id) REFERENCES events(id),
   FOREIGN KEY (checked_in_by) REFERENCES admins(id),
   UNIQUE KEY uniq_reg_order (registration_id, participant_order),
-  UNIQUE KEY uniq_event_roll (event_id, roll_number)
+  UNIQUE KEY uniq_event_roll (event_id, roll_number),
+  UNIQUE KEY uniq_event_email (event_id, email),
+  UNIQUE KEY uniq_event_mobile (event_id, mobile)
 );

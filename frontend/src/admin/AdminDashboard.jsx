@@ -486,7 +486,7 @@ function AddMemberModal({ registration, onClose, onDone }) {
     setSubmitting(true);
     setError(null);
     try {
-      await api.addTeamMember(registration.id, { fullName, rollNumber, mobile: mobile || undefined, email: email || undefined });
+      await api.addTeamMember(registration.id, { fullName, rollNumber, mobile, email });
       onDone();
     } catch (err) {
       setError(err.message);
@@ -502,8 +502,8 @@ function AddMemberModal({ registration, onClose, onDone }) {
         <div className="mt-4 space-y-3">
           <input className={`${fieldClass} w-full`} placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
           <input className={`${fieldClass} w-full`} placeholder="Roll number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} required />
-          <input className={`${fieldClass} w-full`} placeholder="Mobile (optional)" value={mobile} onChange={(e) => setMobile(e.target.value)} />
-          <input className={`${fieldClass} w-full`} placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className={`${fieldClass} w-full`} placeholder="Mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} required />
+          <input className={`${fieldClass} w-full`} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">

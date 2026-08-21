@@ -7,14 +7,20 @@ import {
   listParticipantsForRegistration,
   getRegistrationsForParticipant,
 } from "../models/registrations.model.js";
-import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
+import {
+  isValidFullName,
+  isValidRollNumber,
+  isValidEmail,
+  isValidMobile,
+  normalizeEmail,
+  normalizeMobile,
+} from "../utils/validators.js";
+import { checkRegistrationEligibility, duplicateKeyMessage } from "../services/eligibility.js";
 import {
   issueParticipantRefreshCookie,
   setParticipantAccessCookie,
   setParticipantSessionHint,
 } from "../middleware/participantAuth.js";
-
-const MUTUALLY_EXCLUSIVE_EVENTS = { hackathon: "ideathon", ideathon: "hackathon" };
 
 function httpError(status, message) {
   const e = new Error(message);
@@ -60,6 +66,14 @@ export async function createRegistration(req, res, next) {
       if (!isValidRollNumber(p.rollNumber)) {
         throw httpError(400, `Participant ${i + 1}'s roll number must be alphanumeric`);
       }
+      if (!isValidEmail(p.email)) {
+        throw httpError(400, `Participant ${i + 1}'s email is missing or invalid`);
+      }
+      if (!isValidMobile(p.mobile)) {
+        throw httpError(400, `Participant ${i + 1}'s mobile number is missing or invalid`);
+      }
+      p.email = normalizeEmail(p.email);
+      p.mobile = normalizeMobile(p.mobile);
     }
 
     // Team-member step doesn't collect a per-person college — assume single-college
@@ -71,45 +85,10 @@ export async function createRegistration(req, res, next) {
       if (!p.college) p.college = college;
     }
 
-    // Cross-event eligibility: Hackathon/Ideathon exclusion + 3-event cap per person.
-    // Matched by (college, roll_number), case-insensitive, since there's no
-    // user-account system. If college is missing we can't verify identity, so the
-    // check is skipped rather than blocking a registration we can't evaluate.
-    if (college) {
-      const rollNumbers = participants.map((p) => p.rollNumber.trim().toUpperCase());
-      const placeholders = rollNumbers.map(() => "?").join(",");
-      const [existingRows] = await conn.query(
-        `SELECT p.roll_number, e.id AS event_id, e.slug AS event_slug, e.name AS event_name,
-                r.registration_code, r.team_name
-         FROM participants p
-         JOIN registrations r ON r.id = p.registration_id
-         JOIN events e ON e.id = r.event_id
-         WHERE UPPER(p.college) = UPPER(?) AND UPPER(p.roll_number) IN (${placeholders})
-           AND r.payment_status IN ('not_required','created','paid')`,
-        [college, ...rollNumbers]
-      );
-
-      const otherSlug = MUTUALLY_EXCLUSIVE_EVENTS[event.slug];
-
-      for (const p of participants) {
-        const rows = existingRows.filter((r) => r.roll_number.toUpperCase() === p.rollNumber.trim().toUpperCase());
-
-        if (otherSlug) {
-          const conflict = rows.find((r) => r.event_slug === otherSlug);
-          if (conflict) {
-            throw httpError(
-              409,
-              `${p.fullName} (Roll No: ${p.rollNumber}) is already registered for ${conflict.event_name} ` +
-                `(${conflict.team_name || conflict.registration_code}) and can't also register for ${event.name}.`
-            );
-          }
-        }
-
-        if (new Set(rows.map((r) => r.event_id)).size >= 3) {
-          throw httpError(409, `${p.fullName} (Roll No: ${p.rollNumber}) has already registered for the maximum of 3 events.`);
-        }
-      }
-    }
+    // Cross-event eligibility: same-event duplicate prevention, Hackathon/Ideathon
+    // exclusion, and 3-event cap per person. Matched by (college, roll_number),
+    // email, or mobile — see services/eligibility.js.
+    await checkRegistrationEligibility(conn, event, participants);
 
     // Scoped per event (not globally) and to still-active registrations only —
     // a failed/abandoned registration keeps its row forever (PII purge doesn't
@@ -167,7 +146,7 @@ export async function createRegistration(req, res, next) {
   } catch (err) {
     if (conn) await conn.rollback();
     if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ error: "One or more roll numbers are already registered for this event" });
+      return res.status(409).json({ error: duplicateKeyMessage(err) });
     }
     return next(err);
   } finally {

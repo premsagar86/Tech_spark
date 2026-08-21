@@ -2,7 +2,15 @@ import { pool } from "../db/pool.js";
 import { confirmPayment } from "../services/confirmPayment.js";
 import { searchRegistrations, getRegistrationById, getRegistrationStats, setScore } from "../models/registrations.model.js";
 import { getParticipantByCheckInCode, getParticipantById } from "../models/participants.model.js";
-import { isValidFullName, isValidRollNumber } from "../utils/validators.js";
+import {
+  isValidFullName,
+  isValidRollNumber,
+  isValidEmail,
+  isValidMobile,
+  normalizeEmail,
+  normalizeMobile,
+} from "../utils/validators.js";
+import { checkRegistrationEligibility, duplicateKeyMessage } from "../services/eligibility.js";
 import { adminRefreshCookieOptions, adminSessionHintCookieOptions, adminTokenCookieOptions } from "../middleware/adminAuth.js";
 import { revokeRefreshToken } from "../services/refreshTokens.js";
 
@@ -157,6 +165,11 @@ export async function addTeamMember(req, res, next) {
     if (!isValidFullName(fullName) || !isValidRollNumber(rollNumber)) {
       throw httpError(400, "Name must be at least 3 letters (alphabets only) and roll number must be alphanumeric");
     }
+    if (!isValidEmail(email) || !isValidMobile(mobile)) {
+      throw httpError(400, "A valid email and 10-digit mobile number are required");
+    }
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedMobile = normalizeMobile(mobile);
 
     const [[registration]] = await conn.query("SELECT * FROM registrations WHERE id = ? FOR UPDATE", [id]);
     if (!registration) throw httpError(404, "Registration not found");
@@ -171,13 +184,17 @@ export async function addTeamMember(req, res, next) {
       throw httpError(400, `Team is already at the maximum size of ${event.max_team_size}`);
     }
 
-    newParticipantOrder = existing.length + 1;
     const college = existing[0]?.college ?? null;
+    await checkRegistrationEligibility(conn, event, [
+      { fullName, rollNumber, college, email: normalizedEmail, mobile: normalizedMobile },
+    ]);
+
+    newParticipantOrder = existing.length + 1;
     await conn.query(
       `INSERT INTO participants
          (registration_id, event_id, participant_order, full_name, roll_number, college, mobile, email)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, registration.event_id, newParticipantOrder, fullName, rollNumber, college, mobile ?? null, email ?? null]
+      [id, registration.event_id, newParticipantOrder, fullName, rollNumber, college, normalizedMobile, normalizedEmail]
     );
     await conn.query("UPDATE registrations SET team_size = ? WHERE id = ?", [newParticipantOrder, id]);
 
@@ -185,7 +202,7 @@ export async function addTeamMember(req, res, next) {
   } catch (err) {
     await conn.rollback();
     if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ error: "That roll number is already registered for this event" });
+      return res.status(409).json({ error: duplicateKeyMessage(err) });
     }
     return next(err);
   } finally {

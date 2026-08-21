@@ -11,7 +11,7 @@ export default defineConfig({
     // resolve to the Vite dev server itself, which doesn't serve the API.
     proxy: {
       '/api': {
-        target: 'https://acceptable-commitment-production-d2e1.up.railway.app',
+        target: process.env.VITE_API_URL,
         changeOrigin: true,
       },
     },

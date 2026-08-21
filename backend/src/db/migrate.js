@@ -25,6 +25,20 @@ export async function migrateSchema() {
       sql: "ALTER TABLE participants ADD COLUMN github_url VARCHAR(255) NULL, ADD COLUMN linkedin_url VARCHAR(255) NULL",
     },
     {
+      // Enforces one registration per event per email/mobile at the DB level,
+      // backing up the application-level check in services/eligibility.js.
+      // ER_DUP_KEYNAME means it's already applied (idempotent re-run).
+      // ER_DUP_ENTRY means existing data already violates it — logged as a
+      // warning rather than thrown, so it doesn't block later migrations in
+      // this list; re-run `npm run db:schema` after the data is cleaned up.
+      name: "participants.uniq_event_email/uniq_event_mobile",
+      sql: `ALTER TABLE participants
+              ADD UNIQUE KEY uniq_event_email (event_id, email),
+              ADD UNIQUE KEY uniq_event_mobile (event_id, mobile)`,
+      dupCode: ["ER_DUP_KEYNAME"],
+      onDupEntry: "warn",
+    },
+    {
       // CREATE TABLE IF NOT EXISTS is idempotent on its own — no ER_DUP_FIELDNAME
       // to swallow, this just no-ops on every boot once the table exists.
       name: "refresh_tokens table",
@@ -42,12 +56,20 @@ export async function migrateSchema() {
     },
   ];
 
-  for (const { name, sql } of migrations) {
+  for (const { name, sql, dupCode = ["ER_DUP_FIELDNAME"], onDupEntry } of migrations) {
     try {
       await pool.query(sql);
       console.log(`Migrated: added ${name}`);
     } catch (err) {
-      if (err.code !== "ER_DUP_FIELDNAME") throw err;
+      if (dupCode.includes(err.code)) continue;
+      if (err.code === "ER_DUP_ENTRY" && onDupEntry === "warn") {
+        console.warn(
+          `Skipped migration "${name}": existing data violates the new constraint (${err.message}). ` +
+            `Clean up the duplicate rows, then re-run \`npm run db:schema\`.`
+        );
+        continue;
+      }
+      throw err;
     }
   }
 }
