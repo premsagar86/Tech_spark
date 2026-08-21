@@ -26,6 +26,10 @@ export const personalDetailsSchema = z.object({
 export const teamMemberSchema = z.object({
   fullName: fullNameField,
   rollNumber: rollNumberField,
+  college: z.string().min(1, "Required"),
+  course: z.string().min(1, "Required"),
+  branch: z.string().min(1, "Required"),
+  year: z.enum(["1st year", "2nd year", "3rd year"], { errorMap: () => ({ message: "Required" }) }),
   mobile: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile number"),
   email: z.string().email("Enter a valid email"),
 });

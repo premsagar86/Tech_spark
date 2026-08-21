@@ -29,7 +29,7 @@ export function ParticipantQR({ participant, size = 140 }) {
 
   return (
     <div
-      className={`flex flex-col items-center gap-2 rounded-lg border p-4 ${
+      className={`flex min-w-0 flex-col items-center gap-2 rounded-lg border p-4 ${
         isLeader ? "border-primary bg-primary/5" : "border-border bg-raised"
       }`}
     >
@@ -41,7 +41,7 @@ export function ParticipantQR({ participant, size = 140 }) {
 
       <QRCanvas participant={participant} size={size} />
 
-      <div className="text-center">
+      <div className="w-full break-words text-center">
         <div className="text-sm font-semibold">{participant.full_name}</div>
         <div className="text-xs text-foreground-muted">{participant.roll_number}</div>
         {isLeader && (
@@ -60,7 +60,7 @@ export function ParticipantQR({ participant, size = 140 }) {
         {(participant.mobile || participant.email) && (
           <div className="mt-1 space-y-0.5 text-xs text-foreground-muted">
             {participant.mobile && <div>{participant.mobile}</div>}
-            {participant.email && <div>{participant.email}</div>}
+            {participant.email && <div className="break-all">{participant.email}</div>}
           </div>
         )}
         {participant.checked_in && (

@@ -28,7 +28,18 @@ export default function StepTeamMembers({ event, defaultValues, onNext, onBack }
     resolver: zodResolver(schema),
     defaultValues: {
       teamName: defaultValues?.teamName ?? "",
-      members: defaultValues?.members ?? Array.from({ length: minMembers }, () => ({ fullName: "", rollNumber: "", mobile: "", email: "" })),
+      members:
+        defaultValues?.members ??
+        Array.from({ length: minMembers }, () => ({
+          fullName: "",
+          rollNumber: "",
+          college: "",
+          course: "",
+          branch: "",
+          year: "",
+          mobile: "",
+          email: "",
+        })),
     },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "members" });
@@ -94,12 +105,27 @@ export default function StepTeamMembers({ event, defaultValues, onNext, onBack }
               {[
                 ["fullName", "Full name"],
                 ["rollNumber", "Roll number"],
+                ["college", "College"],
+                ["course", "Course"],
+                ["branch", "Branch"],
+                ["year", "Year"],
                 ["mobile", "Mobile number"],
                 ["email", "Email"],
               ].map(([name, label]) => (
                 <div key={name}>
                   <label className="mb-1 block text-xs text-foreground-muted">{label}</label>
-                  <input className={fieldClass} {...register(`members.${index}.${name}`)} />
+                  {name === "year" ? (
+                    <select className={fieldClass} defaultValue="" {...register(`members.${index}.${name}`)}>
+                      <option value="" disabled>
+                        Select year
+                      </option>
+                      <option value="1st year">1st year</option>
+                      <option value="2nd year">2nd year</option>
+                      <option value="3rd year">3rd year</option>
+                    </select>
+                  ) : (
+                    <input className={fieldClass} {...register(`members.${index}.${name}`)} />
+                  )}
                   {errors.members?.[index]?.[name] && (
                     <p className="mt-1 text-xs text-red-400">{errors.members[index][name].message}</p>
                   )}
@@ -113,7 +139,9 @@ export default function StepTeamMembers({ event, defaultValues, onNext, onBack }
       {fields.length < maxMembers && (
         <button
           type="button"
-          onClick={() => append({ fullName: "", rollNumber: "", mobile: "", email: "" })}
+          onClick={() =>
+            append({ fullName: "", rollNumber: "", college: "", course: "", branch: "", year: "", mobile: "", email: "" })
+          }
           className="mt-4 rounded-full border border-border px-4 py-2 text-sm hover:border-primary"
         >
           + Add member

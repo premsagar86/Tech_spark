@@ -4,6 +4,12 @@ import { sendConfirmationEmail } from "./email.js";
 import { issueParticipantToken } from "../middleware/participantAuth.js";
 import { getRegistrationById } from "../models/registrations.model.js";
 
+function httpError(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  return e;
+}
+
 // The one shared, idempotent core that every payment-confirmation trigger
 // (Razorpay signature verification, the Razorpay webhook, free-event submit,
 // and admin add-team-member backfill) calls — must be safe to fire more than
@@ -14,7 +20,7 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
     await conn.beginTransaction();
 
     const [[registration]] = await conn.query("SELECT * FROM registrations WHERE id = ? FOR UPDATE", [registrationId]);
-    if (!registration) throw new Error(`Registration ${registrationId} not found`);
+    if (!registration) throw httpError(404, `Registration ${registrationId} not found`);
 
     const [participants] = await conn.query(
       "SELECT * FROM participants WHERE registration_id = ? ORDER BY participant_order",
@@ -24,9 +30,15 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
     // Safety net: participant PII gets purged for long-abandoned 'failed'
     // registrations (expireStaleRegistrations.js). If this ever fires against
     // a purged registration, fail loudly instead of silently marking a
-    // roster-less registration as 'paid'.
+    // roster-less registration as 'paid' — as a proper httpError so callers
+    // (e.g. the admin dashboard's manual confirm-payment override) surface a
+    // clear message instead of a generic 500.
     if (participants.length === 0) {
-      throw new Error(`Registration ${registrationId} has no participants — cannot confirm payment`);
+      throw httpError(
+        409,
+        `Registration ${registrationId}'s participant details have already been removed (it was abandoned/unpaid ` +
+          `past the retention window) — payment can no longer be confirmed for it.`
+      );
     }
 
     // Idempotency guard — handles the webhook-vs-client-callback race.
