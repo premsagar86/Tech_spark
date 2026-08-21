@@ -34,7 +34,7 @@ export default function MyRegistrationCard() {
       .catch(() => clearParticipantSession())
       .finally(() => setLoading(false));
     api.getEvents().then((d) => setEvents(d.events));
-  }, [sessionLoading, role]);
+  }, [sessionLoading, role, participantId]);
 
   // The Navbar's Logout button clears the session without a route change
   // (we're already on "/"), so drop stale data as soon as useSession() picks
@@ -46,7 +46,13 @@ export default function MyRegistrationCard() {
   if (sessionLoading || loading) return null;
   if (!data) return null;
 
+  // data can briefly lag behind a just-updated participantId (a new
+  // registration completed while this card was already mounted, e.g. on a
+  // shared/kiosk device) — until the refetch triggered by that change
+  // resolves, bail out rather than render the previous participant's team.
   const myParticipant = data.participants.find((p) => p.id === participantId);
+  if (!myParticipant) return null;
+
   const isSolo = data.participants.length === 1;
   const orderedParticipants = data.participants.slice().sort((a, b) => a.participant_order - b.participant_order);
   const leader = orderedParticipants.find((p) => p.participant_order === 1);
@@ -56,25 +62,23 @@ export default function MyRegistrationCard() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h2 className="mb-1 text-lg font-semibold">My Registration</h2>
 
-      {myParticipant && (
-        <p className="mb-6 text-sm text-foreground-muted">
-          {isSolo ? (
-            <>
-              Welcome, <span className="font-semibold text-foreground">{myParticipant.full_name}</span>! You're
-              registered for <span className="font-semibold text-foreground">{data.registration.event_name}</span>.
-            </>
-          ) : (
-            <>
-              Welcome, Team{" "}
-              <span className="font-semibold text-foreground">
-                {data.registration.team_name || leader?.full_name}
-              </span>
-              ! Your team is registered for{" "}
-              <span className="font-semibold text-foreground">{data.registration.event_name}</span>.
-            </>
-          )}
-        </p>
-      )}
+      <p className="mb-6 text-sm text-foreground-muted">
+        {isSolo ? (
+          <>
+            Welcome, <span className="font-semibold text-foreground">{myParticipant.full_name}</span>! You're
+            registered for <span className="font-semibold text-foreground">{data.registration.event_name}</span>.
+          </>
+        ) : (
+          <>
+            Welcome, Team{" "}
+            <span className="font-semibold text-foreground">
+              {data.registration.team_name || leader?.full_name}
+            </span>
+            ! Your team is registered for{" "}
+            <span className="font-semibold text-foreground">{data.registration.event_name}</span>.
+          </>
+        )}
+      </p>
 
       <div className="rounded-xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">

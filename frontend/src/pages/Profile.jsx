@@ -27,7 +27,7 @@ export default function Profile() {
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionLoading, role]);
+  }, [sessionLoading, role, participantId]);
 
   if (sessionLoading || loading) return null;
   if (!data) return null;
