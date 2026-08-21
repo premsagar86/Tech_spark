@@ -12,7 +12,17 @@ import { useEffect, useState } from "react";
 import { api } from "./api.js";
 
 let session = { role: null, participantId: null, adminId: null, loaded: false };
-let loadPromise = null;
+
+// Guards against an out-of-order response: the boot-time loadSession() call
+// (fired on every page, including /login, before anyone's authenticated) can
+// still be in flight — e.g. behind a slow/cold-starting backend — when login
+// calls refreshSession() and gets a newer, correct answer back first. Without
+// this, the stale pre-login response arriving afterwards would blindly
+// overwrite the fresh post-login session back to "logged out". Each fetch
+// captures the sequence number current at its own start and only applies its
+// result if nothing newer has been kicked off since.
+let requestSeq = 0;
+let currentPromise = null;
 
 // Same-tab components (e.g. Navbar) can't rely on the native "storage" event
 // — that never fires for cookies at all, and even for localStorage it only
@@ -27,24 +37,32 @@ function setSession(next) {
   notifySessionChanged();
 }
 
+function fetchSession() {
+  const seq = ++requestSeq;
+  currentPromise = api
+    .getSession()
+    .then((data) => ({ role: data.role, participantId: data.participantId ?? null, adminId: data.adminId ?? null }))
+    .catch(() => ({ role: null, participantId: null, adminId: null }))
+    .then((next) => {
+      if (seq !== requestSeq) return; // superseded by a newer request — this result is stale, ignore it
+      setSession(next);
+    });
+  return currentPromise;
+}
+
 // Fetches the session once and caches it; safe to call from multiple
 // components — they all share the same in-flight/completed promise.
 export function loadSession() {
-  if (!loadPromise) {
-    loadPromise = api
-      .getSession()
-      .then((data) => setSession({ role: data.role, participantId: data.participantId ?? null, adminId: data.adminId ?? null }))
-      .catch(() => setSession({ role: null, participantId: null, adminId: null }));
-  }
-  return loadPromise;
+  if (!currentPromise) fetchSession();
+  return currentPromise;
 }
 
 // Forces a fresh look at the server — called right after login/magic-link
 // verification, since the cookies just changed and the cached answer (from
-// before login) is now stale.
+// before login) is now stale. Always starts a new request (bumping
+// requestSeq so any older, still-in-flight request's result gets discarded).
 export function refreshSession() {
-  loadPromise = null;
-  return loadSession();
+  return fetchSession();
 }
 
 export function isAdminLoggedIn() {
@@ -71,12 +89,14 @@ export function getParticipantId() {
 // are cleared server-side by the logout endpoints callers already invoke
 // alongside this.
 export function clearAdminSession() {
-  loadPromise = null;
+  requestSeq++; // invalidate any in-flight fetch so it can't overwrite this with a stale role
+  currentPromise = null;
   setSession({ role: null, adminId: null });
 }
 
 export function clearParticipantSession() {
-  loadPromise = null;
+  requestSeq++;
+  currentPromise = null;
   setSession({ role: null, participantId: null });
 }
 
