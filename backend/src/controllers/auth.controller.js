@@ -3,24 +3,14 @@ import {
   issueAdminToken,
   issueAdminSession,
   adminRefreshCookieOptions,
+  adminTokenCookieOptions,
   setAdminSessionHint,
   adminSessionHintCookieOptions,
-  ADMIN_ACCESS_TTL_MS,
   ADMIN_REFRESH_TTL_MS,
 } from "../middleware/adminAuth.js";
 import { rotateRefreshToken } from "../services/refreshTokens.js";
 import { getParticipantByEmailAndMobile } from "../models/participants.model.js";
 import { getAdminByEmailAndMobile, getAdminById } from "../models/admins.model.js";
-
-const ADMIN_TOKEN_COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  secure: process.env.NODE_ENV === "production",
-  // Chrome/Edge block third-party cookies by default — see the matching
-  // note in adminAuth.js's adminRefreshCookieOptions().
-  partitioned: process.env.NODE_ENV === "production",
-  maxAge: ADMIN_ACCESS_TTL_MS,
-};
 
 // Single entry point for both participants and staff — identify by
 // email+mobile (participants never had a password; admins/scanners no
@@ -33,15 +23,15 @@ export async function login(req, res, next) {
 
     const participant = await getParticipantByEmailAndMobile(email, mobile);
     if (participant) {
-      const token = await issueParticipantSession(res, participant);
-      return res.json({ role: "participant", token });
+      await issueParticipantSession(res, participant);
+      return res.json({ role: "participant" });
     }
 
     const admin = await getAdminByEmailAndMobile(email, mobile);
     if (admin) {
       const token = await issueAdminSession(res, admin);
-      res.cookie("adminToken", token, ADMIN_TOKEN_COOKIE_OPTIONS);
-      return res.json({ role: admin.role, token });
+      res.cookie("adminToken", token, adminTokenCookieOptions());
+      return res.json({ role: admin.role });
     }
 
     res.status(401).json({ error: "No matching account found" });
@@ -62,7 +52,7 @@ export async function refreshAdmin(req, res, next) {
     const rotated = await rotateRefreshToken("admin", raw, ADMIN_REFRESH_TTL_MS);
     if (!rotated) {
       res.clearCookie("adminRefreshToken", adminRefreshCookieOptions());
-      res.clearCookie("adminToken", ADMIN_TOKEN_COOKIE_OPTIONS);
+      res.clearCookie("adminToken", adminTokenCookieOptions());
       res.clearCookie("adminSessionHint", adminSessionHintCookieOptions());
       return res.status(401).json({ error: "Session expired, please log in again" });
     }
@@ -72,9 +62,9 @@ export async function refreshAdmin(req, res, next) {
     if (!admin) return res.status(401).json({ error: "Not authenticated" });
 
     const token = issueAdminToken(admin);
-    res.cookie("adminToken", token, ADMIN_TOKEN_COOKIE_OPTIONS);
+    res.cookie("adminToken", token, adminTokenCookieOptions());
     setAdminSessionHint(res, admin);
-    res.json({ role: admin.role, token });
+    res.json({ role: admin.role });
   } catch (err) {
     next(err);
   }

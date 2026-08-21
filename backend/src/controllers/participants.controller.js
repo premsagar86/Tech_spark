@@ -31,8 +31,8 @@ export async function loginParticipant(req, res, next) {
     const participant = await getParticipantByEmailAndMobile(email, mobile);
     if (!participant) return res.status(401).json({ error: "No matching registration found" });
 
-    const token = await issueParticipantSession(res, participant);
-    res.json({ token });
+    await issueParticipantSession(res, participant);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -62,7 +62,7 @@ export async function refreshParticipant(req, res, next) {
     const accessToken = issueParticipantToken(participant);
     setParticipantAccessCookie(res, accessToken);
     setParticipantSessionHint(res, participant);
-    res.json({ token: accessToken });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -165,7 +165,8 @@ export async function verifyMagicLink(req, res, next) {
       return res.status(400).json({ error: "Link has already been used" });
     }
 
-    res.json({ token: await issueParticipantSession(res, participant) });
+    await issueParticipantSession(res, participant);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

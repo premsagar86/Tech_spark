@@ -46,6 +46,21 @@ export function adminRefreshCookieOptions() {
   };
 }
 
+// Options for the real (httpOnly) access-token cookie itself — must match
+// every other cookie builder's `path: "/"`, otherwise the browser scopes it
+// to the directory of whichever endpoint set it (e.g. "/api/auth") and never
+// sends it back on "/api/admin/*" requests, breaking every protected route.
+export function adminTokenCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+    partitioned: process.env.NODE_ENV === "production",
+    maxAge: ADMIN_ACCESS_TTL_MS,
+    path: "/",
+  };
+}
+
 // Deliberately NOT httpOnly — a small, non-authoritative "who's logged in"
 // hint (role only, no signature) so the frontend can render Navbar/routing
 // state synchronously without ever touching the real (httpOnly) token. The
