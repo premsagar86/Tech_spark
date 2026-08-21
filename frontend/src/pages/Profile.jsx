@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { isParticipantLoggedIn, clearParticipantSession, getParticipantId } from "../lib/session.js";
+import { useSession, clearParticipantSession } from "../lib/session.js";
 
 const fieldClass =
   "w-full rounded-lg border border-border bg-raised px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none";
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { role, participantId, loading: sessionLoading } = useSession();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isParticipantLoggedIn()) {
+    if (sessionLoading) return;
+    if (role !== "participant") {
       navigate("/login");
       return;
     }
@@ -25,12 +27,12 @@ export default function Profile() {
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionLoading, role]);
 
-  if (loading) return null;
+  if (sessionLoading || loading) return null;
   if (!data) return null;
 
-  const myParticipant = data.participants.find((p) => p.id === getParticipantId());
+  const myParticipant = data.participants.find((p) => p.id === participantId);
   if (!myParticipant) return null;
 
   const isLeader = myParticipant.participant_order === 1;

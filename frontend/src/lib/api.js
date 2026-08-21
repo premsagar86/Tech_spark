@@ -97,6 +97,7 @@ export const api = {
   // Auth — one endpoint for both participants and staff, role comes back
   // in the response so the caller knows which token to store.
   login: (payload) => request("/api/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+  getSession: () => request("/api/auth/session"),
 
   // Participants
   getMyRegistration: () => request("/api/participants/me", {}, { auth: "participant" }),

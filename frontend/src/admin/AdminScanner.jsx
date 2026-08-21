@@ -4,11 +4,12 @@ import { Html5Qrcode } from "html5-qrcode";
 import { motion } from "motion/react";
 import { scanResultBanner } from "../animations/motionVariants.js";
 import { api } from "../lib/api.js";
-import { getAdminRole } from "../lib/session.js";
+import { useSession } from "../lib/session.js";
 
 const SCANNER_ELEMENT_ID = "qr-reader";
 
 export default function AdminScanner() {
+  const { role } = useSession();
   const scannerRef = useRef(null);
   const [result, setResult] = useState(null); // { kind: 'not-found' | 'not-authorized' | 'authorized', ... }
   const [scanning, setScanning] = useState(false);
@@ -74,7 +75,7 @@ export default function AdminScanner() {
 
   return (
     <section className="mx-auto max-w-lg px-4 py-10">
-      {getAdminRole() === "admin" && (
+      {role === "admin" && (
         <Link to="/admin" className="mb-4 inline-flex items-center gap-1 text-sm text-foreground-muted hover:text-primary">
           ← Back to Dashboard
         </Link>

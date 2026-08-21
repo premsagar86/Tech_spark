@@ -13,6 +13,12 @@ import MagicLink from "./pages/MagicLink.jsx";
 import AdminDashboard from "./admin/AdminDashboard.jsx";
 import AdminScanner from "./admin/AdminScanner.jsx";
 import AdminRoute from "./admin/AdminRoute.jsx";
+import { loadSession } from "./lib/session.js";
+
+// Kick off the server-verified session check as early as possible (see
+// session.js) so it's already in flight before Navbar/AdminRoute need the
+// answer, instead of each of them independently triggering it on mount.
+loadSession();
 
 function PublicLayout({ children }) {
   return (

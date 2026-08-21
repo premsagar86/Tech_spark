@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import { issueParticipantSession } from "../middleware/participantAuth.js";
 import {
   issueAdminToken,
@@ -68,4 +69,35 @@ export async function refreshAdmin(req, res, next) {
   } catch (err) {
     next(err);
   }
+}
+
+// Status probe for the frontend's "am I logged in" UI state — cookies set by
+// the backend (Railway) aren't readable via document.cookie on the frontend's
+// origin (Amplify) when the two aren't same-site, so the client can't just
+// parse a hint cookie itself; it has to ask the server, which reads the real
+// httpOnly cookies fine regardless of cross-site restrictions. Always 200 —
+// this reports status, it doesn't gate access (requireAdmin/requireParticipant
+// still do that on the actual protected routes).
+export function getSession(req, res) {
+  const adminToken = req.cookies?.adminToken;
+  if (adminToken) {
+    try {
+      const payload = jwt.verify(adminToken, process.env.JWT_ADMIN_SECRET);
+      return res.json({ role: payload.role, adminId: payload.adminId });
+    } catch {
+      // fall through — an expired/invalid adminToken doesn't rule out a valid participantToken
+    }
+  }
+
+  const participantToken = req.cookies?.participantToken;
+  if (participantToken) {
+    try {
+      const payload = jwt.verify(participantToken, process.env.JWT_PARTICIPANT_SECRET);
+      return res.json({ role: "participant", participantId: payload.participantId });
+    } catch {
+      // fall through to the logged-out response below
+    }
+  }
+
+  res.json({ role: null });
 }

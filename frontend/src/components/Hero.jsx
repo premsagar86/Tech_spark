@@ -1,24 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import Countdown from "./Countdown.jsx";
 import { useScrollReveal } from "../animations/scrollReveal.js";
-import { isParticipantLoggedIn, isAdminLoggedIn } from "../lib/session.js";
+import { useSession } from "../lib/session.js";
 
 export default function Hero() {
   const ref = useRef(null);
   useScrollReveal(ref, { stagger: true });
 
-  // Same-page login/logout doesn't trigger a route change, so re-check on the
-  // shared session event instead of only at mount (see MyRegistrationCard.jsx).
-  const [, setSessionTick] = useState(0);
-  useEffect(() => {
-    const handler = () => setSessionTick((n) => n + 1);
-    window.addEventListener("ts2026-session-changed", handler);
-    return () => window.removeEventListener("ts2026-session-changed", handler);
-  }, []);
-
-  const isLoggedIn = isParticipantLoggedIn() || isAdminLoggedIn();
+  const { role, loading } = useSession();
+  const isLoggedIn = !loading && role != null;
 
   return (
     <section className="mx-auto flex min-h-[80vh] max-w-6xl flex-col items-center justify-center gap-8 px-4 py-24 text-center">

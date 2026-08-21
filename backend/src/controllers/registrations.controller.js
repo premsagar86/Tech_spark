@@ -185,7 +185,6 @@ export async function createRegistration(req, res, next) {
       return res.status(201).json({
         registrationCode,
         paymentRequired: false,
-        participantToken: result.participantToken,
       });
     } catch (err) {
       return next(err);
@@ -269,7 +268,7 @@ export async function verifyPayment(req, res, next) {
       await issueParticipantRefreshCookie(res, result.participants[0].id);
       setParticipantSessionHint(res, result.participants[0]);
     }
-    res.json({ ok: true, participantToken: result.participantToken });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

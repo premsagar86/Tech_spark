@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
-import { isParticipantLoggedIn, clearParticipantSession, getParticipantId } from "../lib/session.js";
+import { useSession, clearParticipantSession } from "../lib/session.js";
 import { QRCanvas } from "./TeamCard.jsx";
 import EventCard from "./EventCard.jsx";
 import EventModal from "./EventModal.jsx";
@@ -16,13 +16,15 @@ const paymentStatusLabel = {
 // Persistent "My Registration" card (Part 7) — shown on any page load when a
 // valid participant token exists, no navigation or manual code entry required.
 export default function MyRegistrationCard() {
+  const { role, participantId, loading: sessionLoading } = useSession();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
 
   useEffect(() => {
-    if (!isParticipantLoggedIn()) {
+    if (sessionLoading) return;
+    if (role !== "participant") {
       setLoading(false);
       return;
     }
@@ -32,23 +34,19 @@ export default function MyRegistrationCard() {
       .catch(() => clearParticipantSession())
       .finally(() => setLoading(false));
     api.getEvents().then((d) => setEvents(d.events));
-  }, []);
+  }, [sessionLoading, role]);
 
-  // The Navbar's Logout button clears the token without a route change
-  // (we're already on "/"), so this sibling component needs its own signal
-  // to drop stale data instead of leaving the last-fetched QR on screen.
+  // The Navbar's Logout button clears the session without a route change
+  // (we're already on "/"), so drop stale data as soon as useSession() picks
+  // up the change, instead of leaving the last-fetched QR on screen.
   useEffect(() => {
-    function handleSessionChange() {
-      if (!isParticipantLoggedIn()) setData(null);
-    }
-    window.addEventListener("ts2026-session-changed", handleSessionChange);
-    return () => window.removeEventListener("ts2026-session-changed", handleSessionChange);
-  }, []);
+    if (role !== "participant") setData(null);
+  }, [role]);
 
-  if (loading) return null;
+  if (sessionLoading || loading) return null;
   if (!data) return null;
 
-  const myParticipant = data.participants.find((p) => p.id === getParticipantId());
+  const myParticipant = data.participants.find((p) => p.id === participantId);
   const isSolo = data.participants.length === 1;
   const orderedParticipants = data.participants.slice().sort((a, b) => a.participant_order - b.participant_order);
   const leader = orderedParticipants.find((p) => p.participant_order === 1);

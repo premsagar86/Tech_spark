@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { loginSchema, magicLinkRequestSchema } from "../lib/schemas.js";
-import { notifySessionChanged } from "../lib/session.js";
+import { refreshSession } from "../lib/session.js";
 
 const fieldClass =
   "w-full rounded-lg border border-border bg-raised px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none";
@@ -27,7 +27,7 @@ export default function Login() {
     setError(null);
     try {
       const { role } = await api.login(data);
-      notifySessionChanged();
+      await refreshSession();
       if (role === "participant") {
         navigate("/");
       } else {

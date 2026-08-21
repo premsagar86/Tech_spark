@@ -1,14 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import logo from "../images/logo/leadership/logo.png";
 import { api } from "../lib/api.js";
-import {
-  isParticipantLoggedIn,
-  isAdminLoggedIn,
-  clearParticipantSession,
-  clearAdminSession,
-} from "../lib/session.js";
+import { useSession, clearParticipantSession, clearAdminSession } from "../lib/session.js";
 
 const baseLinks = [
   { to: "/", label: "Home" },
@@ -27,23 +22,17 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Re-render on login/logout even when it happens without a route change
-  // (e.g. the "Log out" button on MyRegistrationCard) — see session.js.
-  const [, setSessionTick] = useState(0);
-  useEffect(() => {
-    const handler = () => setSessionTick((n) => n + 1);
-    window.addEventListener("ts2026-session-changed", handler);
-    return () => window.removeEventListener("ts2026-session-changed", handler);
-  }, []);
-
-  const isLoggedIn = isParticipantLoggedIn() || isAdminLoggedIn();
+  // useSession() already re-renders on login/logout, including when it
+  // happens without a route change (e.g. the "Log out" button on
+  // MyRegistrationCard) — see session.js.
+  const { role, loading } = useSession();
+  const isLoggedIn = !loading && role != null;
 
   function handleLogout() {
-    if (isAdminLoggedIn()) {
+    if (role === "admin" || role === "scanner") {
       clearAdminSession();
       api.adminLogout().catch(() => {});
-    }
-    if (isParticipantLoggedIn()) {
+    } else if (role === "participant") {
       clearParticipantSession();
       api.participantLogout().catch(() => {});
     }
