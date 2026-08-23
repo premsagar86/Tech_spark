@@ -9,6 +9,7 @@ import {
   setParticipantSessionHint,
   participantSessionHintCookieOptions,
   PARTICIPANT_REFRESH_TTL_MS,
+  PARTICIPANT_ACCESS_TTL_MS,
 } from "../middleware/participantAuth.js";
 import { issueRecoveryToken, verifyRecoveryToken } from "../services/passwordReset.js";
 import { rotateRefreshToken, revokeRefreshToken } from "../services/refreshTokens.js";
@@ -62,7 +63,7 @@ export async function refreshParticipant(req, res, next) {
     const accessToken = issueParticipantToken(participant);
     setParticipantAccessCookie(res, accessToken);
     setParticipantSessionHint(res, participant);
-    res.json({ ok: true });
+    res.json({ ok: true, accessTokenExpiresAt: Date.now() + PARTICIPANT_ACCESS_TTL_MS });
   } catch (err) {
     next(err);
   }

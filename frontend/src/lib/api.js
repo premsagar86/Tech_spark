@@ -18,6 +18,7 @@ async function refreshAccessToken(auth) {
   const path = auth === "admin" ? "/api/auth/refresh" : "/api/participants/refresh";
   const res = await fetch(`${API_URL}${path}`, { method: "POST", credentials: "include" });
   if (!res.ok) throw new Error("refresh failed");
+  return res.json();
 }
 
 function refreshOnce(auth) {
@@ -32,6 +33,11 @@ function refreshOnce(auth) {
   }
   return participantRefreshPromise;
 }
+
+// Exposed for session.js's proactive (pre-expiry) refresh timer — shares the
+// same in-flight dedup as the reactive 401 path above, so a proactive tick
+// racing a real 401 still only fires one request.
+export { refreshOnce as triggerSilentRefresh };
 
 async function request(path, options = {}, { auth } = {}, _retried = false) {
   const headers = { "Content-Type": "application/json", ...options.headers };

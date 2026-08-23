@@ -9,9 +9,46 @@
 // server (GET /api/auth/session), which reads the real cookies fine across
 // origins.
 import { useEffect, useState } from "react";
-import { api } from "./api.js";
+import { api, triggerSilentRefresh } from "./api.js";
 
-let session = { role: null, participantId: null, adminId: null, loaded: false };
+let session = { role: null, participantId: null, adminId: null, accessTokenExpiresAt: null, loaded: false };
+
+// Proactive refresh: instead of only reacting to a 401 (which always costs
+// the triggering request one extra round trip), schedule a silent refresh
+// shortly before the access token actually expires, using the expiry the
+// server hands back on login/refresh/session-check. Refreshing early enough
+// (1 min of buffer) means a logged-in user essentially never hits a 401 for
+// expiry alone; the reactive path in api.js stays as the fallback for cases
+// this timer can't cover (page was asleep/backgrounded past expiry, etc).
+const REFRESH_BUFFER_MS = 60_000;
+let refreshTimer = null;
+
+function authTypeForRole(role) {
+  if (role === "admin" || role === "scanner") return "admin";
+  if (role === "participant") return "participant";
+  return null;
+}
+
+function scheduleProactiveRefresh() {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  const auth = authTypeForRole(session.role);
+  if (!auth || !session.accessTokenExpiresAt) return;
+
+  const delay = Math.max(session.accessTokenExpiresAt - Date.now() - REFRESH_BUFFER_MS, 5_000);
+  refreshTimer = setTimeout(async () => {
+    try {
+      const data = await triggerSilentRefresh(auth);
+      setSession({ accessTokenExpiresAt: data.accessTokenExpiresAt ?? null });
+    } catch {
+      // A real logout (refresh token expired/revoked/reused elsewhere) — leave
+      // local session state as-is. The next real request's reactive 401 path
+      // (see api.js) will discover this and clear the session properly.
+    }
+  }, delay);
+}
 
 // Guards against an out-of-order response: the boot-time loadSession() call
 // (fired on every page, including /login, before anyone's authenticated) can
@@ -34,6 +71,7 @@ export function notifySessionChanged() {
 
 function setSession(next) {
   session = { ...session, ...next, loaded: true };
+  scheduleProactiveRefresh();
   notifySessionChanged();
 }
 
@@ -41,8 +79,13 @@ function fetchSession() {
   const seq = ++requestSeq;
   currentPromise = api
     .getSession()
-    .then((data) => ({ role: data.role, participantId: data.participantId ?? null, adminId: data.adminId ?? null }))
-    .catch(() => ({ role: null, participantId: null, adminId: null }))
+    .then((data) => ({
+      role: data.role,
+      participantId: data.participantId ?? null,
+      adminId: data.adminId ?? null,
+      accessTokenExpiresAt: data.accessTokenExpiresAt ?? null,
+    }))
+    .catch(() => ({ role: null, participantId: null, adminId: null, accessTokenExpiresAt: null }))
     .then((next) => {
       if (seq !== requestSeq) return; // superseded by a newer request — this result is stale, ignore it
       setSession(next);
@@ -91,13 +134,13 @@ export function getParticipantId() {
 export function clearAdminSession() {
   requestSeq++; // invalidate any in-flight fetch so it can't overwrite this with a stale role
   currentPromise = null;
-  setSession({ role: null, adminId: null });
+  setSession({ role: null, adminId: null, accessTokenExpiresAt: null });
 }
 
 export function clearParticipantSession() {
   requestSeq++;
   currentPromise = null;
-  setSession({ role: null, participantId: null });
+  setSession({ role: null, participantId: null, accessTokenExpiresAt: null });
 }
 
 // React hook for components that need to react once the session fetch

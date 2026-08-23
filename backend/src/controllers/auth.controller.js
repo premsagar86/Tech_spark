@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { issueParticipantSession } from "../middleware/participantAuth.js";
+import { issueParticipantSession, PARTICIPANT_ACCESS_TTL_MS } from "../middleware/participantAuth.js";
 import {
   issueAdminToken,
   issueAdminSession,
@@ -8,6 +8,7 @@ import {
   setAdminSessionHint,
   adminSessionHintCookieOptions,
   ADMIN_REFRESH_TTL_MS,
+  ADMIN_ACCESS_TTL_MS,
 } from "../middleware/adminAuth.js";
 import { rotateRefreshToken } from "../services/refreshTokens.js";
 import { getParticipantByEmailAndMobile } from "../models/participants.model.js";
@@ -25,14 +26,14 @@ export async function login(req, res, next) {
     const participant = await getParticipantByEmailAndMobile(email, mobile);
     if (participant) {
       await issueParticipantSession(res, participant);
-      return res.json({ role: "participant" });
+      return res.json({ role: "participant", accessTokenExpiresAt: Date.now() + PARTICIPANT_ACCESS_TTL_MS });
     }
 
     const admin = await getAdminByEmailAndMobile(email, mobile);
     if (admin) {
       const token = await issueAdminSession(res, admin);
       res.cookie("adminToken", token, adminTokenCookieOptions());
-      return res.json({ role: admin.role });
+      return res.json({ role: admin.role, accessTokenExpiresAt: Date.now() + ADMIN_ACCESS_TTL_MS });
     }
 
     res.status(401).json({ error: "No matching account found" });
@@ -65,7 +66,7 @@ export async function refreshAdmin(req, res, next) {
     const token = issueAdminToken(admin);
     res.cookie("adminToken", token, adminTokenCookieOptions());
     setAdminSessionHint(res, admin);
-    res.json({ role: admin.role });
+    res.json({ role: admin.role, accessTokenExpiresAt: Date.now() + ADMIN_ACCESS_TTL_MS });
   } catch (err) {
     next(err);
   }
@@ -83,7 +84,7 @@ export function getSession(req, res) {
   if (adminToken) {
     try {
       const payload = jwt.verify(adminToken, process.env.JWT_ADMIN_SECRET);
-      return res.json({ role: payload.role, adminId: payload.adminId });
+      return res.json({ role: payload.role, adminId: payload.adminId, accessTokenExpiresAt: payload.exp * 1000 });
     } catch {
       // fall through — an expired/invalid adminToken doesn't rule out a valid participantToken
     }
@@ -93,7 +94,11 @@ export function getSession(req, res) {
   if (participantToken) {
     try {
       const payload = jwt.verify(participantToken, process.env.JWT_PARTICIPANT_SECRET);
-      return res.json({ role: "participant", participantId: payload.participantId });
+      return res.json({
+        role: "participant",
+        participantId: payload.participantId,
+        accessTokenExpiresAt: payload.exp * 1000,
+      });
     } catch {
       // fall through to the logged-out response below
     }
