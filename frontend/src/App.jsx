@@ -10,6 +10,7 @@ import Leaderboard from "./pages/Leaderboard.jsx";
 import Login from "./pages/Login.jsx";
 import Profile from "./pages/Profile.jsx";
 import MagicLink from "./pages/MagicLink.jsx";
+import NotFound from "./pages/NotFound.jsx";
 import AdminDashboard from "./admin/AdminDashboard.jsx";
 import AdminScanner from "./admin/AdminScanner.jsx";
 import AdminRoute from "./admin/AdminRoute.jsx";
@@ -46,6 +47,8 @@ export default function App() {
 
         <Route path="/admin" element={<AdminRoute roles={["admin"]}><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/scan" element={<AdminRoute><AdminScanner /></AdminRoute>} />
+
+        <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
       </Routes>
     </BrowserRouter>
   );

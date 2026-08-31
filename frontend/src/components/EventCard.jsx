@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import EventIcon from "./EventIcon.jsx";
 
@@ -60,12 +61,12 @@ export default function EventCard({ event, onOpen }) {
             Event Completed
           </span>
         ) : (
-          <a
-            href={`/register?event=${event.slug}`}
+          <Link
+            to={`/register?event=${event.slug}`}
             className="flex-1 rounded-full bg-primary px-4 py-2 text-center text-sm font-semibold text-background hover:bg-primary-light"
           >
             Register
-          </a>
+          </Link>
         )}
       </div>
     </motion.div>
