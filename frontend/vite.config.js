@@ -1,19 +1,24 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    // Mirrors the Amplify rewrite rule used in production (Console →
-    // Rewrites and redirects, /api/<*> → the Railway backend) — without
-    // this, VITE_API_URL being a relative path (see frontend/.env) would
-    // resolve to the Vite dev server itself, which doesn't serve the API.
-    proxy: {
-      '/api': {
-        target: process.env.VITE_API_URL,
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  // Vite doesn't populate process.env from .env inside the config file, so load
+  // it explicitly. VITE_API_PROXY_TARGET is dev-only — it's the Railway backend
+  // the dev server proxies /api/* to, mirroring the vercel.json rewrite used in
+  // production. VITE_API_URL itself stays empty (see frontend/.env) so the app
+  // always makes same-origin /api/* requests.
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
+    plugins: [react()],
+    server: {
+      proxy: {
+        '/api': {
+          target: env.VITE_API_PROXY_TARGET,
+          changeOrigin: true,
+        },
       },
     },
-  },
+  }
 })
