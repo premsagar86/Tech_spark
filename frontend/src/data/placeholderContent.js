@@ -29,7 +29,7 @@ export const administration = [
 
 export const coordinators = [
   { name: "M. Lavanya Madam", phone: "6281134730", role:"Faculty - Computer Science",photo: LavanyaPhoto },
-  { name: "J . Haritha Madam", phone: "6304321629", role: "Coordinator",photo: HarithaPhoto },
+  { name: "J . Haritha Madam", phone: "6304321629", role: "Faculty - Computer Science",photo: HarithaPhoto },
   { name: "G . Dwarakesh reddy", phone: "6309596158", role: "Student Coordinator",photo: DwarakeshPhoto },
   { name: "E . Prem Sai", phone: "9603328067", role: "Student Coordinator",photo: PremSaiPhoto },
 ];
