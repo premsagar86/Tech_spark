@@ -13,7 +13,7 @@ function getTimeLeft(targetDate) {
 
 // TODO: FEST_START should come from the earliest event.event_date once the
 // events list has loaded, rather than this hardcoded placeholder.
-const FEST_START = "2026-09-03T09:00:00";
+const FEST_START = "2026-09-11T09:00:00";
 
 export default function Countdown({ targetDate = FEST_START }) {
   const [timeLeft, setTimeLeft] = useState(() => getTimeLeft(targetDate));
