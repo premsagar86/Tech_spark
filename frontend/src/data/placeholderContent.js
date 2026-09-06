@@ -10,7 +10,7 @@ import vicePrincipalPhoto from "../images/adminstration/vice-principle.jpeg";
 import LavanyaPhoto from "../images/coordinators/Lavanya.jpeg";
 import HarithaPhoto from "../images/coordinators/Haritha.jpeg";
 import DwarakeshPhoto from "../images/coordinators/Dwarakesh.png";
-import PremSaiPhoto from "../images/coordinators/PremSai.jpeg";
+import PremSaiPhoto from "../images/coordinators/Premsai.jpeg";
 
 // Real photos supplied in src/images/logo/leadership/ — names/titles are
 // TODO until the user provides them; using role-only labels in the meantime
