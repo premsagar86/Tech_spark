@@ -10,8 +10,16 @@ export default function Leadership() {
   
   return (
     <section className="mx-auto max-w-6xl px-4 py-16">
-      <h2 className="text-center text-3xl md:text-4xl">Leadership</h2>
-      <div ref={ref} className="mt-8 grid gap-6 sm:grid-cols-3">
+      <div className="text-center">
+        <span className="inline-block rounded-full border border-accent/30 bg-accent/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-gradient">
+          Leadership &amp; Patronage
+        </span>
+        <h2 className="mt-4 font-display text-3xl md:text-5xl">Our Visionary Leaders</h2>
+        <p className="mx-auto mt-3 max-w-2xl text-foreground-muted">
+          TechSpark 2026 is proudly organized under the guidance of the management of Aditya Degree Colleges.
+        </p>
+      </div>
+      <div ref={ref} className="mt-10 grid gap-6 sm:grid-cols-3">
         {leadership.map((p) => (
           <motion.div
             key={p.name}
