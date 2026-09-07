@@ -655,14 +655,23 @@ function isCorrect(q, answer) {
 }
 ```
 
-### 6.6 New env vars (fail-loud at boot — see `backend/.env.example`)
+### 6.6 New env vars (see `backend/.env.example`)
 
 ```
-JWT_EXAM_SECRET=<random>
-EXAM_ATTEMPT_GRACE_MS=600000                 # added to duration for the attempt-token TTL
-PROCTOR_EXT_SHARED_SECRET=<random>           # MUST equal proctor/extension/config.js SHARED_SECRET
-PROCTOR_EXT_PROOF_TTL_MS=120000              # optional, default 120000
+JWT_EXAM_SECRET=<random>                     # REQUIRED to enable the exam feature.
+                                            #   unset → every /api/exam route returns 503,
+                                            #   the rest of the API is unaffected.
+PROCTOR_EXT_SHARED_SECRET=<random>          # required only for require_extension exams;
+                                            #   MUST equal proctor/extension/config.js SHARED_SECRET.
+EXAM_ATTEMPT_GRACE_MS=600000                # OPTIONAL (default 600000). Added to an exam's
+                                            #   duration for the attempt-token TTL.
+PROCTOR_EXT_PROOF_TTL_MS=120000             # optional, default 120000
 ```
+
+The exam feature is additive and **cannot crash the backend** if unconfigured —
+`JWT_EXAM_SECRET` gates the routes with a 503, `EXAM_ATTEMPT_GRACE_MS` has a safe
+default, `PROCTOR_EXT_SHARED_SECRET` fails the handshake with a 403. Only
+`JWT_ADMIN_SECRET` / `JWT_PARTICIPANT_SECRET` / the TTL vars are fail-loud at boot.
 
 ---
 
@@ -785,9 +794,9 @@ screenshot tools, disabling the camera at the driver level.
 
 ```bash
 # 1. backend env — add to backend/.env (see backend/.env.example)
-JWT_EXAM_SECRET=$(openssl rand -hex 32)
-EXAM_ATTEMPT_GRACE_MS=600000
-PROCTOR_EXT_SHARED_SECRET=$(openssl rand -hex 32)
+JWT_EXAM_SECRET=$(openssl rand -hex 32)              # required — without it /api/exam returns 503
+PROCTOR_EXT_SHARED_SECRET=$(openssl rand -hex 32)    # required for require_extension exams
+# EXAM_ATTEMPT_GRACE_MS=600000                       # optional, this is the default
 
 # 2. schema + sample exam
 cd backend

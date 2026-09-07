@@ -1,13 +1,25 @@
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
-import { requireEnvInt } from "../utils/env.js";
 
 // A per-attempt token, layered on top of requireParticipant. Binds the caller
 // to one attempt id + participant id so a valid participant session can't be
 // pointed at someone else's attempt. Lifetime tracks the exam clock (duration
 // + a fixed grace window) so it naturally dies when the exam is over.
 
-const EXAM_ATTEMPT_GRACE_MS = requireEnvInt("EXAM_ATTEMPT_GRACE_MS");
+// NOT via requireEnvInt(): a grace window has a safe default, and env.js's
+// fail-loud rule is reserved for values where a silent default is *dangerous*
+// (a JWT secret, a token TTL that could mint a never-expiring token). This
+// module is in the startup import graph — a missing var here must never
+// crash-loop the whole backend (registration, payments, admin) for the sake
+// of an additive feature.
+const EXAM_ATTEMPT_GRACE_MS = Number(process.env.EXAM_ATTEMPT_GRACE_MS) || 600_000;
+
+// Whether the exam feature can operate at all. The one hard requirement is a
+// signing secret for the per-attempt token — without it the exam routes should
+// return 503, not throw. See routes/exam.routes.js.
+export function examFeatureConfigured() {
+  return !!process.env.JWT_EXAM_SECRET;
+}
 
 export function attemptTokenTtlMs(durationMinutes) {
   return durationMinutes * 60 * 1000 + EXAM_ATTEMPT_GRACE_MS;

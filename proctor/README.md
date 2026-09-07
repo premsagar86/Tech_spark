@@ -87,9 +87,11 @@ OS screenshot tools, disabling the camera at the driver level.
 
 Backend (`../backend`):
 
-1. `.env` — add `JWT_EXAM_SECRET`, `EXAM_ATTEMPT_GRACE_MS`,
-   `PROCTOR_EXT_SHARED_SECRET` (see `../backend/.env.example`). The shared secret
-   **must equal** `extension/config.js` → `CONFIG.SHARED_SECRET`.
+1. `.env` — add `JWT_EXAM_SECRET` (required — without it every `/api/exam` route
+   returns 503 and the rest of the API is unaffected) and `PROCTOR_EXT_SHARED_SECRET`
+   (required for `require_extension` exams; **must equal** `extension/config.js` →
+   `CONFIG.SHARED_SECRET`). `EXAM_ATTEMPT_GRACE_MS` is optional (default 600000).
+   See `../backend/.env.example`.
 2. `npm run db:schema` — creates the 5 exam tables (`migrate.js` also runs on every boot).
 3. `npm run db:seed:exam` — seeds a sample exam (`slug: "sample"`) + questions.
 

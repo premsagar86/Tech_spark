@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireParticipant } from "../middleware/participantAuth.js";
-import { requireExamAttempt } from "../middleware/examAttemptAuth.js";
+import { requireExamAttempt, examFeatureConfigured } from "../middleware/examAttemptAuth.js";
 import { examStartLimiter, examEventsLimiter } from "../middleware/rateLimiter.js";
 import {
   getExamMeta,
@@ -12,6 +12,16 @@ import {
 } from "../controllers/exam.controller.js";
 
 const router = Router();
+
+// The exam feature is opt-in: if the server has no JWT_EXAM_SECRET, every exam
+// route returns a clean 503 instead of an opaque 500/401. The rest of the API
+// is unaffected.
+router.use((req, res, next) => {
+  if (!examFeatureConfigured()) {
+    return res.status(503).json({ error: "Exam feature is not configured on this server" });
+  }
+  next();
+});
 
 // Attempt-scoped routes first — two segments, so no collision with "/:slug",
 // but declared here for clarity (mirrors registrations.routes.js).
