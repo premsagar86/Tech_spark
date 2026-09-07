@@ -51,9 +51,14 @@ export async function confirmPayment(registrationId, { confirmedByAdminId } = {}
         await conn.query("UPDATE participants SET check_in_code = ? WHERE id = ?", [checkInCode, p.id]);
       }
 
+      // Free events (fee 0) come in as 'not_required' and must stay that way —
+      // otherwise every free signup lands in the dashboard's "Paid" bucket
+      // instead of "Free (No Payment)". Only a real fee produces a 'paid' row.
+      const confirmedStatus = Number(registration.registration_fee) > 0 ? "paid" : "not_required";
+
       await conn.query(
-        `UPDATE registrations SET payment_status = 'paid', payment_confirmed_by = ?, payment_confirmed_at = NOW() WHERE id = ?`,
-        [confirmedByAdminId ?? null, registrationId]
+        `UPDATE registrations SET payment_status = ?, payment_confirmed_by = ?, payment_confirmed_at = NOW() WHERE id = ?`,
+        [confirmedStatus, confirmedByAdminId ?? null, registrationId]
       );
 
       await conn.commit();

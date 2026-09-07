@@ -39,6 +39,16 @@ export async function migrateSchema() {
       onDupEntry: "warn",
     },
     {
+      // Data fix, not a schema change: confirmPayment() used to overwrite every
+      // confirmed registration's status with 'paid', including free (fee 0)
+      // events that should stay 'not_required'. Correct the historical rows.
+      // Idempotent — after the first run no rows match, so re-runs no-op.
+      name: "registrations.payment_status free-event backfill",
+      sql: `UPDATE registrations SET payment_status = 'not_required'
+            WHERE registration_fee = 0 AND payment_status = 'paid'`,
+      dupCode: [],
+    },
+    {
       // CREATE TABLE IF NOT EXISTS is idempotent on its own — no ER_DUP_FIELDNAME
       // to swallow, this just no-ops on every boot once the table exists.
       name: "refresh_tokens table",

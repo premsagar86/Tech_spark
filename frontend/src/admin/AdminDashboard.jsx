@@ -214,6 +214,7 @@ export default function AdminDashboard() {
                     <th className="px-3 py-2">Event</th>
                     <th className="px-3 py-2">Teams</th>
                     <th className="px-3 py-2">Paid</th>
+                    <th className="px-3 py-2">Free</th>
                     <th className="px-3 py-2">Pending</th>
                     <th className="px-3 py-2">Failed</th>
                     <th className="px-3 py-2">Revenue</th>
@@ -230,6 +231,7 @@ export default function AdminDashboard() {
                       <td className="px-3 py-2">{ev.event_name}</td>
                       <td className="px-3 py-2">{ev.teams}</td>
                       <td className="px-3 py-2 text-accent">{ev.paid ?? 0}</td>
+                      <td className="px-3 py-2 text-accent">{ev.not_required ?? 0}</td>
                       <td className="px-3 py-2 text-primary">{ev.created ?? 0}</td>
                       <td className="px-3 py-2 text-red-400">{ev.failed ?? 0}</td>
                       <td className="px-3 py-2">₹{ev.revenue}</td>
@@ -237,7 +239,7 @@ export default function AdminDashboard() {
                   ))}
                   {stats.byEvent.length === 0 && (
                     <tr>
-                      <td className="px-3 py-4 text-foreground-muted" colSpan={6}>No registrations yet.</td>
+                      <td className="px-3 py-4 text-foreground-muted" colSpan={7}>No registrations yet.</td>
                     </tr>
                   )}
                 </tbody>
