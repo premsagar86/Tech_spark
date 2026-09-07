@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -12,7 +13,22 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    resolve: {
+      alias: {
+        // The proctoring SDK lives in the sibling proctor/ workspace so it stays
+        // reusable by other sites. It's dependency-free plain ESM, so aliasing
+        // straight at the source (rather than a published package) works for
+        // both `vite dev` and `vite build` — the full repo is present at build
+        // time on Amplify too. If you ever move proctor/ out of this repo,
+        // publish @techspark/proctor-sdk and swap this alias for the package.
+        '@techspark/proctor-sdk': fileURLToPath(
+          new URL('../proctor/sdk/src/index.js', import.meta.url)
+        ),
+      },
+    },
     server: {
+      // Allow importing the SDK from outside the frontend/ root in dev.
+      fs: { allow: ['..'] },
       proxy: {
         '/api': {
           target: env.VITE_API_PROXY_TARGET,

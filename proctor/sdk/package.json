@@ -1,0 +1,16 @@
+{
+  "name": "@techspark/proctor-sdk",
+  "version": "0.1.0",
+  "description": "In-page proctoring monitor. Framework-agnostic. Talks to the TechSpark MV3 extension when present, degrades gracefully when not.",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
+  "license": "UNLICENSED"
+}

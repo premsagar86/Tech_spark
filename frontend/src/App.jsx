@@ -11,9 +11,12 @@ import Login from "./pages/Login.jsx";
 import Profile from "./pages/Profile.jsx";
 import MagicLink from "./pages/MagicLink.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import Exam from "./pages/Exam.jsx";
 import AdminDashboard from "./admin/AdminDashboard.jsx";
 import AdminScanner from "./admin/AdminScanner.jsx";
+import AdminExamAttempts from "./admin/AdminExamAttempts.jsx";
 import AdminRoute from "./admin/AdminRoute.jsx";
+import ParticipantRoute from "./components/ParticipantRoute.jsx";
 import { loadSession } from "./lib/session.js";
 
 // Kick off the server-verified session check as early as possible (see
@@ -45,8 +48,12 @@ export default function App() {
         <Route path="/profile" element={<PublicLayout><Profile /></PublicLayout>} />
         <Route path="/login/magic" element={<PublicLayout><MagicLink /></PublicLayout>} />
 
+        {/* Exam runs chromeless — no navbar/footer/glow while a test is in progress. */}
+        <Route path="/exam/:slug" element={<ParticipantRoute><Exam /></ParticipantRoute>} />
+
         <Route path="/admin" element={<AdminRoute roles={["admin"]}><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/scan" element={<AdminRoute><AdminScanner /></AdminRoute>} />
+        <Route path="/admin/exam/:slug" element={<AdminRoute roles={["admin"]}><AdminExamAttempts /></AdminRoute>} />
 
         <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
       </Routes>

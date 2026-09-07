@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>TechSpark Exam Proctor — Options</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
+      h1 { font-size: 18px; }
+      code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; }
+      textarea { width: 100%; height: 96px; font-family: ui-monospace, monospace; }
+      button { background: #ff6b00; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+      .note { color: #666; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>TechSpark Exam Proctor</h1>
+    <p class="note">
+      Allowed exam origins (one per line). These must also be present in
+      <code>manifest.json</code> under <code>host_permissions</code> and
+      <code>content_scripts.matches</code> — changing them here only affects the
+      popup's "in scope" indicator, not what Chrome injects.
+    </p>
+    <textarea id="origins"></textarea>
+    <p><button id="save">Save</button> <span id="status" class="note"></span></p>
+  </body>
+  <script src="options.js"></script>
+</html>

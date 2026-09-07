@@ -12,6 +12,11 @@ import {
   checkInParticipant,
   setRegistrationScore,
 } from "../controllers/admin.controller.js";
+import {
+  listExamAttempts,
+  getExamAttemptDetail,
+  scoreExamAttempt,
+} from "../controllers/exam.controller.js";
 
 const router = Router();
 
@@ -27,5 +32,10 @@ router.post("/registrations/:id/participants", requireAdmin, requireRole("admin"
 
 router.get("/verify/:code", requireAdmin, verifyCheckInCode);
 router.patch("/participants/:id/check-in", requireAdmin, checkInParticipant);
+
+// Proctored exam review
+router.get("/exam/:slug/attempts", requireAdmin, requireRole("admin"), listExamAttempts);
+router.get("/exam/attempts/:id", requireAdmin, requireRole("admin"), getExamAttemptDetail);
+router.patch("/exam/attempts/:id/score", requireAdmin, requireRole("admin"), scoreExamAttempt);
 
 export default router;

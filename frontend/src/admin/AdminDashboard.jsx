@@ -185,6 +185,9 @@ export default function AdminDashboard() {
           <Link to="/admin/scan" className="rounded-full border border-border px-4 py-2 text-sm hover:border-primary">
             Scanner
           </Link>
+          <Link to="/admin/exam/sample" className="rounded-full border border-border px-4 py-2 text-sm hover:border-primary">
+            Exam attempts
+          </Link>
           <button onClick={handleLogout} className="rounded-full border border-border px-4 py-2 text-sm hover:border-primary">
             Log out
           </button>

@@ -9,6 +9,7 @@
     "dev": "nodemon src/server.js",
     "db:schema": "node src/db/applySchema.js",
     "db:seed": "node src/db/seed.js",
+    "db:seed:exam": "node src/db/seedExam.js",
     "create-admin": "node src/db/create-admin.js"
   },
   "dependencies": {

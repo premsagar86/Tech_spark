@@ -113,6 +113,22 @@ export const api = {
   verifyMagicLink: (token) => request(`/api/participants/verify-link?token=${encodeURIComponent(token)}`),
   participantLogout: () => request("/api/participants/logout", { method: "POST" }, { auth: "participant" }),
 
+  // Proctored exam (candidate)
+  getExam: (slug) => request(`/api/exam/${slug}`, {}, { auth: "participant" }),
+  startExam: (slug, payload) =>
+    request(`/api/exam/${slug}/start`, { method: "POST", body: JSON.stringify(payload || {}) }, { auth: "participant" }),
+  getExamAttempt: (id) => request(`/api/exam/attempts/${id}`, {}, { auth: "participant" }),
+  saveExamAnswers: (id, answers) =>
+    request(`/api/exam/attempts/${id}/answers`, { method: "POST", body: JSON.stringify({ answers }) }, { auth: "participant" }),
+  submitExamAttempt: (id) =>
+    request(`/api/exam/attempts/${id}/submit`, { method: "POST" }, { auth: "participant" }),
+
+  // Proctored exam (admin review)
+  listExamAttempts: (slug) => request(`/api/admin/exam/${slug}/attempts`, {}, { auth: "admin" }),
+  getExamAttemptDetail: (id) => request(`/api/admin/exam/attempts/${id}`, {}, { auth: "admin" }),
+  setExamAttemptScore: (id, score) =>
+    request(`/api/admin/exam/attempts/${id}/score`, { method: "PATCH", body: JSON.stringify({ score }) }, { auth: "admin" }),
+
   // Admin
   adminLogout: () => request("/api/admin/logout", { method: "POST" }, { auth: "admin" }),
   listRegistrations: (params = {}) =>

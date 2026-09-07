@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { width: 260px; margin: 0; font: 13px/1.4 system-ui, sans-serif; color: #1a1a1a; }
+      header { background: #ff6b00; color: #fff; padding: 10px 12px; font-weight: 600; }
+      .body { padding: 12px; }
+      .row { display: flex; justify-content: space-between; margin: 6px 0; }
+      .ok { color: #0a7c2f; font-weight: 600; }
+      .bad { color: #b00020; font-weight: 600; }
+      .muted { color: #666; font-size: 12px; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <header>TechSpark Exam Proctor</header>
+    <div class="body">
+      <div class="row"><span>Extension</span><span id="ver" class="ok"></span></div>
+      <div class="row"><span>Exam tab detected</span><span id="armed"></span></div>
+      <div class="row"><span>Displays</span><span id="disp"></span></div>
+      <p class="muted">
+        This extension only reports activity while an exam is in progress in a
+        TechSpark exam tab. It does not read page content, keystrokes, or your
+        camera.
+      </p>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

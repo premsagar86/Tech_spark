@@ -7,6 +7,7 @@ import paymentsRoutes from "./routes/payments.routes.js";
 import participantsRoutes from "./routes/participants.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import examRoutes from "./routes/exam.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
@@ -50,6 +51,7 @@ app.use("/api/payments", paymentsRoutes);
 app.use("/api/participants", participantsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/exam", examRoutes);
 
 app.use(errorHandler);
 export default app;

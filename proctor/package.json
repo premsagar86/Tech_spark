@@ -1,0 +1,13 @@
+{
+  "name": "@techspark/proctor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable browser proctoring monitor: in-page SDK + MV3 extension",
+  "type": "module",
+  "workspaces": [
+    "sdk"
+  ],
+  "scripts": {
+    "demo": "node -e \"console.log('Open proctor/examples/demo-exam/index.html in Chrome (see README).')\""
+  }
+}

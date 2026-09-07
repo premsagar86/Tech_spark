@@ -90,3 +90,89 @@ CREATE TABLE IF NOT EXISTS participants (
   UNIQUE KEY uniq_event_email (event_id, email),
   UNIQUE KEY uniq_event_mobile (event_id, mobile)
 );
+
+-- ---------------------------------------------------------------------------
+-- Proctored entrance exam
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS exams (
+  id                 INT AUTO_INCREMENT PRIMARY KEY,
+  slug               VARCHAR(60)  NOT NULL UNIQUE,
+  title              VARCHAR(150) NOT NULL,
+  event_id           INT          NULL,
+  duration_minutes   INT          NOT NULL DEFAULT 60,
+  strike_limit       INT          NOT NULL DEFAULT 3,
+  require_extension  BOOLEAN      NOT NULL DEFAULT TRUE,
+  require_camera     BOOLEAN      NOT NULL DEFAULT TRUE,
+  shuffle_questions  BOOLEAN      NOT NULL DEFAULT FALSE,
+  reveal_score       BOOLEAN      NOT NULL DEFAULT FALSE,
+  opens_at           DATETIME     NULL,
+  closes_at          DATETIME     NULL,
+  created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (event_id) REFERENCES events(id)
+);
+
+CREATE TABLE IF NOT EXISTS exam_questions (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  exam_id        INT          NOT NULL,
+  type           ENUM('mcq','short','coding') NOT NULL DEFAULT 'mcq',
+  prompt         TEXT         NOT NULL,
+  options        JSON         NULL,
+  correct_answer JSON         NULL,
+  language       VARCHAR(30)  NULL,
+  starter_code   TEXT         NULL,
+  points         INT          NOT NULL DEFAULT 1,
+  order_index    INT          NOT NULL DEFAULT 0,
+  FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS exam_attempts (
+  id                 INT AUTO_INCREMENT PRIMARY KEY,
+  exam_id            INT          NOT NULL,
+  participant_id     INT          NOT NULL,
+  attempt_token_hash CHAR(64)     NULL,
+  signing_key        CHAR(64)     NULL,
+  status             ENUM('in_progress','submitted','auto_submitted','expired') NOT NULL DEFAULT 'in_progress',
+  strikes            INT          NOT NULL DEFAULT 0,
+  auto_score         DECIMAL(10,2) NULL,
+  score              DECIMAL(10,2) NULL,
+  score_updated_at   TIMESTAMP    NULL,
+  score_updated_by   INT          NULL,
+  started_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  submitted_at       TIMESTAMP    NULL,
+  expires_at         DATETIME     NOT NULL,
+  ip                 VARCHAR(45)  NULL,
+  user_agent         TEXT         NULL,
+  extension_version  VARCHAR(20)  NULL,
+  FOREIGN KEY (exam_id) REFERENCES exams(id),
+  FOREIGN KEY (participant_id) REFERENCES participants(id),
+  FOREIGN KEY (score_updated_by) REFERENCES admins(id),
+  UNIQUE KEY uniq_exam_participant (exam_id, participant_id)
+);
+
+CREATE TABLE IF NOT EXISTS exam_answers (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  attempt_id   INT       NOT NULL,
+  question_id  INT       NOT NULL,
+  answer       JSON      NULL,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE CASCADE,
+  FOREIGN KEY (question_id) REFERENCES exam_questions(id),
+  UNIQUE KEY uniq_attempt_question (attempt_id, question_id)
+);
+
+-- Proctoring audit trail. One row per signal. No image data is ever stored
+-- here (face monitoring records only a count + timestamp).
+CREATE TABLE IF NOT EXISTS exam_events (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  attempt_id  INT          NOT NULL,
+  kind        VARCHAR(40)  NOT NULL,
+  severity    ENUM('info','warn','strike') NOT NULL DEFAULT 'info',
+  source      ENUM('sdk','extension','server') NOT NULL DEFAULT 'sdk',
+  detail      JSON         NULL,
+  seq         INT          NULL,
+  client_ts   BIGINT       NULL,
+  server_ts   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE CASCADE,
+  KEY idx_attempt (attempt_id, server_ts)
+);
