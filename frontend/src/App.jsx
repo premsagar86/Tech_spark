@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
-import GlowBackground from "./components/GlowBackground.jsx";
+import TechSparkBackground from "./components/TechSparkBackground.jsx";
+import TechSparkLoading from "./components/TechSparkLoading.jsx";
 import Home from "./pages/Home.jsx";
 import Events from "./pages/Events.jsx";
 import Register from "./pages/Register.jsx";
@@ -27,7 +28,6 @@ loadSession();
 function PublicLayout({ children }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <GlowBackground />
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
@@ -35,9 +35,17 @@ function PublicLayout({ children }) {
   );
 }
 
-export default function App() {
+// The Three.js scene mounts once here and stays alive across every route
+// change; only its visibility toggles, so navigating never tears down or
+// recreates the WebGL context.
+function AppShell() {
+  const { pathname } = useLocation();
+  const chromeless = pathname.startsWith("/exam/") || pathname.startsWith("/admin");
+
   return (
-    <BrowserRouter>
+    <>
+      <TechSparkBackground hidden={chromeless} />
+      <TechSparkLoading />
       <Routes>
         <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
         <Route path="/events" element={<PublicLayout><Events /></PublicLayout>} />
@@ -57,6 +65,14 @@ export default function App() {
 
         <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
       </Routes>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
     </BrowserRouter>
   );
 }
